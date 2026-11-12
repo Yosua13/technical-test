@@ -469,3 +469,28 @@ Selain membedah kode sumber pada `D:\project_kerja_tdi\siap-bos`, inspeksi langs
 | **Ambiguitas "Reset Password" vs "Ganti Password"** | Pengguna yang lupa sandi tidak bisa reset mandiri karena modal mewajibkan `Sandi Lama`. | Pisahkan secara jelas dalam 2 tab modal: **(1) Ganti Sandi** *(pakai Sandi Lama)* dan **(2) Lupa Password via NRK & OTP**. |
 | **Validasi Prematur Input Captcha & Footer Kosong** | Input captcha langsung bertanda merah sebelum disentuh; area bawah halaman kosong tanpa kontak bantuan. | Terapkan validasi reaktif hanya saat `touched/submitted`, tambah footer resmi Dinas Pendidikan DKI Jakarta lengkap dengan informasi bantuan helpdesk & status layanan. |
 | **Navigasi & Transisi Kaku (Statis)** | Perpindahan halaman terasa kaku seperti aplikasi klasik tanpa umpan balik mikro-interaksi. | Implementasikan **UX Motion System profesional**: *fade-slide route transitions*, *staggered bento card reveal*, *spring modal*, *animated SVG absorption donut*, *interactive timeline stepper*, dan *skeleton shimmer*. |
+
+---
+
+## 11. Analisis Database Referensi (`siapbosdev`), 3 Schema (`auth`, `oauth`, `siap`), & 5 Menu Utama
+
+Berdasarkan analisis read-only terhadap database referensi `10.15.36.51:5432/siapbosdev` dan aplikasi referensi `siap-training.jakarta.go.id` (akun `ADMIN-TDI`, Tahun `2025`):
+
+### 11.1 Konsolidasi 3 Schema Database (`auth`, `oauth`, `siap`)
+Sesuai spesifikasi arsitektur terbaru, database aplikasi (`siapbos_dummy_db`) hanya menggunakan **3 schema utama** (tanpa `public` dan tanpa `rkas`):
+1. **Schema `auth`**: Menyimpan tabel autentikasi dan otoritas pengguna (`auth.users`, `auth.roles`).
+2. **Schema `oauth`**: Menyimpan sesi token aktif dan riwayat akses OAuth2 (`oauth.access_token`, `oauth.history_access_token`).
+3. **Schema `siap`**: Menyimpan seluruh tabel master, RKAS (`siap.tmrkasbljrinci`), transaksi BKU BOS/BOP (`siap.tmbkuskl`, `siap.tmbkusklnonspj`, `siap.tmbkusklpajak`), NPD BOP (`siap.tmnpdbop`), Dropping Dana (`siap.tmdropping`), BAP Kas (`siap.tmbapkas`), Mutasi Bank (`siap.tmmutasibank`), Helpdesk (`siap.trhelpdesk_ticket`), dan Audit Log Integrasi (`siap.tiintegration_log`).
+
+### 11.2 Struktur 5 Menu Utama & Sub-Menu (`siap.traplikasi` & `siap.trmenu`)
+Ketika login menggunakan `ADMIN-TDI` (`MonaS123!`, Tahun `2025`), pengguna memiliki akses penuh terhadap **5 Menu Utama** beserta seluruh sub-menunya:
+1. **User Management (`UM` - 7 Sub-Menu)**: `Pengguna`, `Otoritas`, `Aplikasi`, `Menu`, `Periode`, `Master Sekolah`, `Pajak`.
+2. **BKU BOSP Negeri (`BOS` - 27 Sub-Menu)**: `Dashboard BKU BOSP`, `Dropping Dana BOSP`, `Konfirmasi Dropping Dana`, `Input BKU BOSP`, `Pengajuan Pembayaran BKU BOSP`, `Persetujuan Pembayaran BKU BOSP (TU)`, `Persetujuan Pembayaran BKU BOSP (PA)`, `Permohonan Token`, `Pembayaran BKU BOSP`, `Pembayaran Pajak BKU BOSP`, `Batal Transfer BKU BOSP`, `Setor Pendapatan Lain-Lain BOSP`, `Cetak Setor`, `Persetujuan Setoran`, `BAP KAS BOSP`, `Tutup BKU`, `Batal Tutup BKU`, `Mutasi 12 Transaksi BOSP`, `Mutasi Semua Transaksi BOSP`, `Laporan BKU BOSP`, `List BKU BOSP`, `Laporan Monitoring Dinas`, `Pengajuan dan Persetujuan Pendapatan Lain-Lain`, `Pembayaran Pindah Buku BOSP`, `Persetujuan Koreksi Periode Sebelum BOSP`, `Koreksi Periode Sebelum BOSP`, `Koreksi Tahun Lalu`.
+3. **BKU BOP Negeri (`BOP` - 30 Sub-Menu)**: `Dashboard BKU BOP`, `Permohonan NPD`, `Pengajuan Permohonan NPD`, `Persetujuan NPD`, `Input BKU BOP`, `Pengajuan Pembayaran BKU BOP`, `Persetujuan Pembayaran BKU BOP`, `Permohonan Token`, `Pembayaran BKU BOP`, `Pembayaran Pajak`, `Batal Transfer BKU BOP`, `Persetujuan Batal Transfer BKU BOP`, `Cetak Setoran BOP`, `Persetujuan Setoran BOP`, `BAP KAS BOP`, `Batal Tutup BKU`, `Tutup BKU`, `Mutasi 12 Transaksi`, `Laporan BKU BOP`, `BAP Kas Approval (Sudin)`, `Input Setor Sisa Belanja`, `Batas Pengajuan Belanja`, `BAP KAS Approval (PA)`, `Laporan Monitoring Sudin`, `List BKU BOP`, `Pengajuan & Persetujuan Pendapatan Lain-Lain BOP`, `Pembayaran Pindah Buku BOP`, `Persetujuan Koreksi Periode Sebelum BOP`, `Koreksi Periode Sebelum BOP`, `Mutasi Semua Transaksi BOP`.
+4. **Administrator (`ADMN` - 7 Sub-Menu)**: `Batas Pengajuan Belanja`, `Help Desk Pembayaran BKU BOSP`, `Help Desk Pembayaran BKU BOP`, `Help Desk Virtual Account PLN`, `Migrasi RKAS`, `Dropping Dana BOS & BOP`, `Konfirmasi Saldo Rekening`.
+5. **Help Desk (`HELP` - 3 Sub-Menu)**: `User Manual`, `Help Desk`, `Video Tutorial`.
+
+### 11.3 Desain Kreatif `#FF9A00` & Kejelasan Logo Resmi SIAP BOS
+- Palet warna utama menggunakan **`#FF9A00`** (dengan gradasi kreatif `#FF9A00` → `#FF7700` dan aksen `#FF3800`).
+- Logo resmi **`assets/img/login/Logo.png`** ditempatkan di dalam emblem kontras tinggi `#FF9A00` pada Navbar, Hero Landing Page, Kartu Login, dan Topbar Workspace sehingga selalu terlihat tajam dan jelas.
+- Halaman `/landingpage` dirancang sederhana, kreatif, dan minim teks panjang, menampilkan akrostik `S-I-A-P`, ilustrasi resmi `SIAP BOS_login_ilustrasi.png`, serta 5 kartu interaktif untuk menjelajahi **5 Menu Utama** dan sub-menunya secara langsung.

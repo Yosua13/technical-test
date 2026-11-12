@@ -41,19 +41,19 @@ Aplikasi **SIAP BOS** (*Sistem Informasi Akuntabilitas Pengelolaan Bantuan Opera
                                              |
                                              v
                       PostgreSQL 18.4 (localhost:5432 / siapbos_dummy_db)
-                      Schemas: auth | public | siap
+                      Schemas: auth | oauth | siap (tanpa public & rkas)
 ```
 
 | Service / Project | Port | Proxy Path di Frontend | Tanggung Jawab Utama |
 |---|---|---|---|
-| `siapbos-shared` | *(Library)* | — | EF Core Entities, `SiapBosDbContext`, `DbSeeder`, `BkuCoreService`, `BaseBkuController`, JWT Extensions |
-| `siapbos-auth` | **5001** | `/auth-server/*` | OAuth2 Token & Captcha, Master Sekolah/Periode/BAS/Pajak, CRUD Pengguna + Inquiry SIMPEG, Otoritas & Auto Seeder DB |
-| `siapbos-api` | **5002** | `/api/*` | Core BKU BOSP APBN, Dashboard Summary, Dropping Admin Dinas, RKAS, Helpdesk |
+| `siapbos-shared` | *(Library)* | — | EF Core Entities (`auth`, `oauth`, `siap`), `SiapBosDbContext`, `DbSeeder`, `BkuCoreService`, `BaseBkuController`, JWT Extensions |
+| `siapbos-auth` | **5001** | `/auth-server/*` | OAuth2 Token (`oauth.access_token` & `oauth.history_access_token`) & Captcha, Master Sekolah/Periode/BAS/Pajak, CRUD Pengguna + Inquiry SIMPEG, Otoritas & Auto Seeder DB |
+| `siapbos-api` | **5002** | `/api/*` | Core BKU BOSP APBN, Dashboard Summary, Dropping Admin Dinas, RKAS (`siap.tmrkasbljrinci`), Helpdesk (`siap.trhelpdesk_ticket`) |
 | `siapbop-api` | **5003** | `/api-bop/*` | Core BKU BOP APBD, NPD BOP (+ auto SIPKD), Koreksi BKU & Batal Transfer SPJ |
 | `siapbos-integration` | **5004** | `/integration-server/*` | Dummy External Gateway: Bank DKI (Inquiry Rekening, VA/Biller, Transfer CMS), DJP MPN (NPWP, Billing, NTPN), SIPKD, SIMPEG + Audit Log |
 | `siapbos-report` | **5005** | `/report-server/*` | Generator Laporan Resmi PDF (`QuestPDF`) & Excel (`ClosedXML`) |
 | `siapbos-uploader` | **5006** | `/uploader/*`, `/file-uploader/*` | Simulasi MinIO Upload/Preview PDF Invoice & Export/Import Template Excel RKAS |
-| `siapbos-webapp-prod` | **4200** | — | Frontend **Angular 22.2.6** + Bootstrap 5 + Redesain UI/UX **GovTech Jakarta Navy-Slate (`#0B132B`) & Amber (`#F59E0B`)** + Animasi GPU-accelerated & Public Transparency Portal |
+| `siapbos-webapp-prod` | **4200** | — | Frontend **Angular 22.2.6** + Bootstrap 5 + Creative UI **`#FF9A00` Palette**, Logo Resmi `Logo.png` Jelas, Landing Page Ringkas, & **5 Menu Utama (`User Management`, `BKU BOSP Negeri`, `BKU BOP Negeri`, `Administrator`, `Help Desk`)** |
 
 ---
 
@@ -136,18 +136,26 @@ Aplikasi **SIAP BOS** (*Sistem Informasi Akuntabilitas Pengelolaan Bantuan Opera
 
 ---
 
-## 5. Akun Demo Login
+## 5. Akun Demo Login & 5 Menu Utama
 
-Password untuk **semua akun demo**: **`password123`** *(tersedia tombol autofill akun & Demo Mode tanpa mengetik captcha di halaman Login)*:
+Tersedia akun referensi utama **`ADMIN-TDI`** (Tahun Anggaran **`2025`**, Password **`MonaS123!`**) serta akun demo tiap peran (Password **`password123`**):
 
-| Username | Role (`RoleCode`) | Pemegang Peran | Unit Kerja |
-|---|---|---|---|
-| `bendahara.sman1` | `PK-NEGERI` | Bendahara / Pemegang Kas | SMAN 1 Jakarta |
-| `tu.sman1` | `TU-NEGERI` | Kasubag Tata Usaha (Verifikator) | SMAN 1 Jakarta |
-| `kepsek.sman1` | `PA-NEGERI` | Kepala Sekolah (Pengguna Anggaran) | SMAN 1 Jakarta |
-| `sudin.jp` | `SUDIN` | Suku Dinas Pendidikan Wil. I Jakarta Pusat | Wilayah JP |
-| `admin.dinas` | `ADMIN-DINAS` | Administrator Dinas Pendidikan Provinsi DKI Jakarta | Dinas Provinsi |
-| `bendahara.smpn115` | `PK-NEGERI` | Bendahara Sekolah (Multi-Sekolah Demo) | SMPN 115 Jakarta |
+| Username / ID Login | Password | Tahun Default | Role (`RoleCode`) | Pemegang Peran | Unit Kerja |
+|---|---|---|---|---|---|
+| `ADMIN-TDI` | **`MonaS123!`** | `2025` / `2026` | `ADMIN-DINAS` (`ADM_TA`) | TDI ADMIN (Akses Penuh 5 Menu Utama) | Dinas Pendidikan Prov. DKI Jakarta |
+| `bendahara.sman1` | `password123` | `2025` / `2026` | `PK-NEGERI` | Bendahara / Pemegang Kas | SMAN 1 Jakarta |
+| `tu.sman1` | `password123` | `2025` / `2026` | `TU-NEGERI` | Kasubag Tata Usaha (Verifikator) | SMAN 1 Jakarta |
+| `kepsek.sman1` | `password123` | `2025` / `2026` | `PA-NEGERI` | Kepala Sekolah (Pengguna Anggaran) | SMAN 1 Jakarta |
+| `sudin.jp` | `password123` | `2025` / `2026` | `SUDIN` | Suku Dinas Pendidikan Wil. I Jakarta Pusat | Wilayah JP |
+| `admin.dinas` | `password123` | `2025` / `2026` | `ADMIN-DINAS` | Administrator Dinas Pendidikan Provinsi DKI Jakarta | Dinas Provinsi |
+| `bendahara.smpn115` | `password123` | `2025` / `2026` | `PK-NEGERI` | Bendahara Sekolah (Multi-Sekolah Demo) | SMPN 115 Jakarta |
+
+### Daftar 5 Menu Utama & Sub-Menu (Sesuai Referensi `siapbosdev`)
+1. **User Management (`UM`)**: `Pengguna`, `Otoritas`, `Aplikasi`, `Menu`, `Periode`, `Master Sekolah`, `Pajak`.
+2. **BKU BOSP Negeri (`BOS`)**: 27 sub-menu lengkap (`Dashboard BKU BOSP`, `Dropping Dana BOSP`, `Konfirmasi Dropping Dana`, `Input BKU BOSP`, `Pengajuan Pembayaran BKU BOSP`, `Persetujuan Pembayaran BKU BOSP (TU)`, `Persetujuan Pembayaran BKU BOSP (PA)`, `Permohonan Token`, `Pembayaran BKU BOSP`, `Pembayaran Pajak BKU BOSP`, `Batal Transfer BKU BOSP`, `Setor Pendapatan Lain-Lain BOSP`, `Cetak Setor`, `Persetujuan Setoran`, `BAP KAS BOSP`, `Tutup BKU`, `Batal Tutup BKU`, `Mutasi 12 Transaksi BOSP`, `Mutasi Semua Transaksi BOSP`, `Laporan BKU BOSP`, `List BKU BOSP`, `Laporan Monitoring Dinas`, dll.).
+3. **BKU BOP Negeri (`BOP`)**: 30 sub-menu lengkap (`Dashboard BKU BOP`, `Permohonan NPD`, `Pengajuan Permohonan NPD`, `Persetujuan NPD`, `Input BKU BOP`, `Pengajuan Pembayaran BKU BOP`, `Persetujuan Pembayaran BKU BOP`, `Permohonan Token`, `Pembayaran BKU BOP`, `Pembayaran Pajak`, `Batal Transfer BKU BOP`, `Persetujuan Batal Transfer BKU BOP`, `Cetak Setoran BOP`, `Persetujuan Setoran BOP`, `BAP KAS BOP`, `Batal Tutup BKU`, `Tutup BKU`, `Mutasi 12 Transaksi`, `Laporan BKU BOP`, `BAP Kas Approval (Sudin)`, `Input Setor Sisa Belanja`, `Batas Pengajuan Belanja`, `BAP KAS Approval (PA)`, `Laporan Monitoring Sudin`, `List BKU BOP`, dll.).
+4. **Administrator (`ADMN`)**: `Batas Pengajuan Belanja`, `Help Desk Pembayaran BKU BOSP`, `Help Desk Pembayaran BKU BOP`, `Help Desk Virtual Account PLN`, `Migrasi RKAS`, `Dropping Dana BOS & BOP`, `Konfirmasi Saldo Rekening`.
+5. **Help Desk (`HELP`)**: `User Manual`, `Help Desk`, `Video Tutorial`.
 
 > **Tips Demo Cepat**: Pada header atas maupun halaman Persetujuan BKU / Pembayaran / NPD tersedia tombol **Quick Role Switcher (`PK` / `TU` / `PA` / `SUDIN` / `ADMIN`)** untuk memindahkan role aktif dalam 1 klik tanpa logout saat mendemokan alur persetujuan berjenjang!
 

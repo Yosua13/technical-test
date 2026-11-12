@@ -380,3 +380,17 @@ Untuk memberikan tampilan yang **jauh lebih modern, profesional, nyaman di mata 
 3. **Arsitektur Animasi & Micro-Interactions (`styles.scss`)**:
    - *Page Entrance (`pageReveal`)* & *Staggered Reveal (`--stagger`)* menggunakan akselerasi GPU (`transform` + `opacity`) dengan kurva *spring* `cubic-bezier(0.22, 1, 0.36, 1)`.
    - *Modal Pop Spring (`modalPop`)*, *Toast Slide-In*, *Floating Hero Cards*, serta dukungan aksesibilitas `@media (prefers-reduced-motion: reduce)`.
+
+---
+
+## 8. Pembaruan Desain `#FF9A00`, 5 Menu Utama, & Konsolidasi 3 Schema (`auth`, `oauth`, `siap`)
+
+1. **Konsolidasi Schema PostgreSQL (`auth`, `oauth`, `siap`)**:
+   - Seluruh entitas EF Core dipetakan secara eksplisit ke dalam 3 schema (`auth`, `oauth`, `siap`) dengan `modelBuilder.HasDefaultSchema("siap")` tanpa menggunakan schema `public` maupun `rkas`.
+   - Setiap proses login mencatat token aktif ke `oauth.access_token` dan jejak histori ke `oauth.history_access_token`.
+2. **Akun Referensi `ADMIN-TDI` & Tahun Anggaran `2025` / `2026`**:
+   - Mendukung login menggunakan `Tahun = 2025`, `ID Login = ADMIN-TDI`, `Password = MonaS123!` (maupun 1-klik tombol demo), dengan data transaksi lengkap baik pada Tahun Anggaran `2025` maupun `2026`.
+3. **5 Menu Utama & 74 Sub-Menu Aktif**:
+   - Menampilkan **5 Menu Utama** (`User Management`, `BKU BOSP Negeri`, `BKU BOP Negeri`, `Administrator`, `Help Desk`) beserta seluruh sub-menunya baik pada Mega-Menu/Kartu Landing Page, Topbar `#FF9A00`, maupun Sidebar Workspace.
+4. **Tampilan Kreatif `#FF9A00` & Logo SIAP BOS Jelas**:
+   - Menggunakan palet `#FF9A00`, menampilkan `assets/img/login/Logo.png` secara jelas pada emblem kontras tinggi, serta menyajikan `/landingpage` yang ringkas, kreatif, dan minim teks penjelasan panjang.
