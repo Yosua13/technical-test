@@ -5,6 +5,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Sekolah } from '../../core/models/siapbos.models';
+import { TablePaginationComponent, slicePaged } from '../../shared/components/table-pagination.component';
 
 export { PenggunaMgmtComponent } from './pengguna-mgmt.component';
 export { OtoritasMgmtComponent } from './otoritas-mgmt.component';
@@ -15,18 +16,18 @@ export { OtoritasMgmtComponent } from './otoritas-mgmt.component';
 @Component({
   selector: 'app-sekolah-mgmt',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TablePaginationComponent],
   template: `
     <div class="siap-card p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
         <div class="input-group input-group-sm" style="max-width: 300px;">
           <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
           <input type="text" class="form-control border-start-0 ps-0"
-                 [ngModel]="searchText()" (ngModelChange)="searchText.set($event)"
+                 [ngModel]="searchText()" (ngModelChange)="searchText.set($event); page.set(1)"
                  placeholder="Cari NPSN, Sekolah, PA, Bendahara...">
         </div>
         <select class="form-select form-select-sm" style="width: auto;"
-                [ngModel]="jenjangFilter()" (ngModelChange)="jenjangFilter.set($event)">
+                [ngModel]="jenjangFilter()" (ngModelChange)="jenjangFilter.set($event); page.set(1)">
           <option value="">Semua Jenjang</option>
           <option value="SD">SD</option>
           <option value="SMP">SMP</option>
@@ -66,7 +67,7 @@ export { OtoritasMgmtComponent } from './otoritas-mgmt.component';
             @if (filteredSekolah().length === 0) {
               <tr><td colspan="5" class="text-center py-4 text-muted">Tidak ada data sekolah sesuai filter.</td></tr>
             }
-            @for (s of filteredSekolah(); track s.id) {
+            @for (s of pagedSekolah(); track s.id) {
               <tr [class.table-warning]="auth.selectedSekolahId() === s.id">
                 <td>
                   <div class="fw-semibold text-dark">{{ s.namaSekolah }}</div>
@@ -102,54 +103,57 @@ export { OtoritasMgmtComponent } from './otoritas-mgmt.component';
           </tbody>
         </table>
       </div>
+      <app-table-pagination [totalItems]="filteredSekolah().length" itemLabel="sekolah" [(page)]="page" [(pageSize)]="pageSize" />
     </div>
 
     @if (editing()) {
       <div class="modal-backdrop-custom" (click)="editing.set(null)">
-        <div class="modal-dialog-custom" style="max-width: 560px;" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-custom" style="max-width: 580px;" (click)="$event.stopPropagation()">
           <div class="siap-card-header d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0">Edit Profil: {{ editing()!.namaSekolah }}</h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-building-gear me-2 text-warning-emphasis"></i>Sunting Profil: {{ editing()!.namaSekolah }}</h6>
             <button type="button" class="btn-close btn-sm" (click)="editing.set(null)"></button>
           </div>
           <div class="modal-body-scroll">
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">Nama Sekolah</label>
-                <input class="form-control" [(ngModel)]="editing()!.namaSekolah">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaSekolah">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">Kepala Sekolah (PA)</label>
-                <input class="form-control" [(ngModel)]="editing()!.namaKepalaSekolah">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaKepalaSekolah">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">NRK PA</label>
-                <input class="form-control" [(ngModel)]="editing()!.nrkKepalaSekolah">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.nrkKepalaSekolah">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">Verifikator TU</label>
-                <input class="form-control" [(ngModel)]="editing()!.namaKasubagTu">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaKasubagTu">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">Bendahara (PK)</label>
-                <input class="form-control" [(ngModel)]="editing()!.namaBendahara">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaBendahara">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">No. Rek BOS</label>
-                <input class="form-control" [(ngModel)]="editing()!.noRekBos">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.noRekBos">
               </div>
-              <div class="col-6">
+              <div class="col-md-6">
                 <label class="form-label small fw-semibold mb-1">No. Rek BOP</label>
-                <input class="form-control" [(ngModel)]="editing()!.noRekBop">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.noRekBop">
               </div>
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">NPWP Sekolah</label>
-                <input class="form-control" [(ngModel)]="editing()!.npwpSekolah">
+                <input class="form-control form-control-sm" [(ngModel)]="editing()!.npwpSekolah">
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="editing.set(null)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" (click)="save()">Simpan Perubahan</button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="editing.set(null)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" (click)="save()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan Perubahan
+            </button>
           </div>
         </div>
       </div>
@@ -164,6 +168,8 @@ export class SekolahMgmtComponent implements OnInit {
   readonly editing = signal<Sekolah | null>(null);
   readonly searchText = signal('');
   readonly jenjangFilter = signal('');
+  readonly page = signal(1);
+  readonly pageSize = signal(10);
 
   readonly filteredSekolah = computed(() => {
     const q = this.searchText().trim().toLowerCase();
@@ -179,6 +185,10 @@ export class SekolahMgmtComponent implements OnInit {
       );
     });
   });
+
+  readonly pagedSekolah = computed(() =>
+    slicePaged(this.filteredSekolah(), this.page(), this.pageSize())
+  );
 
   ngOnInit(): void {
     this.reload();
@@ -212,15 +222,15 @@ export class SekolahMgmtComponent implements OnInit {
 @Component({
   selector: 'app-pajak-mgmt',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TablePaginationComponent],
   template: `
     <div class="row g-4">
       <div class="col-lg-6">
-        <div class="siap-card h-100">
+        <div class="siap-card h-100 d-flex flex-column overflow-hidden">
           <div class="siap-card-header">
             <h6 class="fw-bold mb-0 text-dark">Master Pajak MPN G3</h6>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive flex-grow-1">
             <table class="table table-siap table-hover mb-0">
               <thead>
                 <tr>
@@ -231,7 +241,7 @@ export class SekolahMgmtComponent implements OnInit {
                 </tr>
               </thead>
               <tbody>
-                @for (t of taxes(); track t.id) {
+                @for (t of pagedTaxes(); track t.id) {
                   <tr>
                     <td><span class="badge badge-role rounded-pill">{{ t.kodeTrxPajak }}</span></td>
                     <td>
@@ -245,15 +255,16 @@ export class SekolahMgmtComponent implements OnInit {
               </tbody>
             </table>
           </div>
+          <app-table-pagination [totalItems]="taxes().length" itemLabel="pajak" [(page)]="taxPage" [(pageSize)]="taxPageSize" />
         </div>
       </div>
 
       <div class="col-lg-6">
-        <div class="siap-card h-100">
+        <div class="siap-card h-100 d-flex flex-column overflow-hidden">
           <div class="siap-card-header">
             <h6 class="fw-bold mb-0 text-dark">Master Bagan Akun Standar (BAS)</h6>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive flex-grow-1">
             <table class="table table-siap table-hover mb-0">
               <thead>
                 <tr>
@@ -263,7 +274,7 @@ export class SekolahMgmtComponent implements OnInit {
                 </tr>
               </thead>
               <tbody>
-                @for (b of basList(); track b.id) {
+                @for (b of pagedBas(); track b.id) {
                   <tr>
                     <td><code>{{ b.kodeAkun }}</code></td>
                     <td class="fw-medium text-dark">{{ b.namaAkun }}</td>
@@ -273,6 +284,7 @@ export class SekolahMgmtComponent implements OnInit {
               </tbody>
             </table>
           </div>
+          <app-table-pagination [totalItems]="basList().length" itemLabel="akun BAS" [(page)]="basPage" [(pageSize)]="basPageSize" />
         </div>
       </div>
     </div>
@@ -282,6 +294,13 @@ export class PajakMgmtComponent implements OnInit {
   private readonly api = inject(SiapBosApiService);
   readonly taxes = signal<any[]>([]);
   readonly basList = signal<any[]>([]);
+  readonly taxPage = signal(1);
+  readonly taxPageSize = signal(10);
+  readonly basPage = signal(1);
+  readonly basPageSize = signal(10);
+
+  readonly pagedTaxes = computed(() => slicePaged(this.taxes(), this.taxPage(), this.taxPageSize()));
+  readonly pagedBas = computed(() => slicePaged(this.basList(), this.basPage(), this.basPageSize()));
 
   ngOnInit(): void {
     this.api.getTaxMasters().subscribe({ next: (res) => this.taxes.set(res.data || []) });

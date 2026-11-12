@@ -5,15 +5,108 @@ import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { DroppingDana, RkasItem } from '../../core/models/siapbos.models';
+import { TablePaginationComponent, slicePaged } from '../../shared/components/table-pagination.component';
 
 // =========================================================================
-// 1. DROPPING DANA ADMIN DINAS
+// 1. DROPPING DANA & MIGRASI EXCEL PASK ADMIN DINAS
 // =========================================================================
 @Component({
   selector: 'app-dropping-dana-admin',
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe],
   template: `
+    <!-- Section Migrasi Excel Dropping Dana & Permohonan NPD (ADM Only) -->
+    <div class="siap-card mb-3 border border-warning-subtle">
+      <div class="siap-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-excel text-success me-2"></i>Migrasi Data Dropping Dana &amp; Permohonan NPD (Excel → PASK)</h6>
+          <small class="text-muted">Upload file Excel Template Migrasi PASK untuk memunculkan pilihan PASK read-only pada Dropping Dana (BOS) dan Permohonan NPD (BOP) — 1x per triwulan.</small>
+        </div>
+        <a class="btn btn-sm btn-siap rounded-pill px-3" href="/file-uploader/api/file-uploader/template-migrasi-dana" target="_blank">
+          <i class="bi bi-download me-1"></i>Download Template Excel Dropping &amp; NPD (.xlsx)
+        </a>
+      </div>
+      <div class="p-3">
+        <div class="row g-2 align-items-center mb-3">
+          <div class="col-lg-6">
+            <div class="input-group input-group-sm">
+              <input #migrasiFileInput type="file" class="form-control" accept=".xlsx,.xls" (change)="onMigrasiFileSelected($event)">
+              <button class="btn btn-siap" (click)="uploadMigrasiExcel(migrasiFileInput)" [disabled]="!migrasiFile() || uploadingMigrasi()">
+                @if (uploadingMigrasi()) { <span class="spinner-border spinner-border-sm me-1"></span>Mengimpor... }
+                @else { <i class="bi bi-cloud-upload me-1"></i>Upload &amp; Migrasi Data Dana }
+              </button>
+            </div>
+            @if (migrasiFile(); as mf) {
+              <div class="small text-primary mt-1">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>File dipilih: <strong>{{ mf.name }}</strong> (klik Upload untuk mengimpor)
+              </div>
+            } @else if (lastUploadedMigrasiName()) {
+              <div class="small text-success fw-semibold mt-1">
+                <i class="bi bi-check-circle-fill me-1"></i>File sudah diupload: <strong>{{ lastUploadedMigrasiName() }}</strong>
+              </div>
+            }
+          </div>
+          <div class="col-lg-3">
+            <select class="form-select form-select-sm" [(ngModel)]="migrasiFilterSumber" (ngModelChange)="loadMigrasiList()">
+              <option value="">Semua Sumber Dana (BOS &amp; BOP)</option>
+              <option value="BOS">BOS (Dropping Dana BOSP)</option>
+              <option value="BOP">BOP (Permohonan NPD)</option>
+            </select>
+          </div>
+          <div class="col-lg-3 text-lg-end">
+            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="loadMigrasiList()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh Hasil Migrasi
+            </button>
+          </div>
+        </div>
+        @if (migrasiMessage()) {
+          <div class="alert alert-success py-2 px-3 small mb-3">{{ migrasiMessage() }}</div>
+        }
+
+        <div class="table-responsive">
+          <table class="table table-siap table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Sekolah</th>
+                <th>Dana &amp; Triwulan</th>
+                <th>Kode Subgiat &amp; Nama PASK</th>
+                <th class="text-center">Rincian</th>
+                <th class="text-end">Total Alokasi (Terkunci)</th>
+                <th>Import</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (migrasiList().length === 0) {
+                <tr><td colspan="6" class="text-center py-3 text-muted">Belum ada data hasil migrasi PASK pada filter terpilih.</td></tr>
+              }
+              @for (m of migrasiList(); track m.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ m.sekolah?.namaSekolah || ('Sekolah #' + m.sekolahId) }}</div>
+                    <small class="text-muted">NPSN: {{ m.sekolah?.npsn || '-' }}</small>
+                  </td>
+                  <td>
+                    <span class="badge me-1" [class]="m.sumberDana === 'BOS' ? 'text-bg-primary' : 'text-bg-warning text-dark'">{{ m.sumberDana }}</span>
+                    <span class="badge bg-light text-dark border">{{ m.kodePeriode }}</span>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ m.kodeSubgiat }} · {{ m.namaPask }}</div>
+                    <small class="text-muted">{{ m.program }} ({{ m.nomorDpaSkpd }})</small>
+                  </td>
+                  <td class="text-center"><span class="badge rounded-pill text-bg-light border">{{ m.rincians?.length || 0 }} baris</span></td>
+                  <td class="text-end fw-bold tabular-nums text-success">{{ m.totalDana | currency:'IDR':'symbol':'1.0-0' }}</td>
+                  <td>
+                    <small class="text-muted d-block">{{ m.importedBy }}</small>
+                    <small class="text-muted">{{ m.importedAt | date:'dd/MM/yy HH:mm' }}</small>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="d-flex justify-content-end align-items-center mb-3 flex-wrap gap-2">
       <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="filterDana">
         <option value="ALL">Semua Sumber Dana</option>
@@ -135,6 +228,13 @@ export class DroppingDanaAdminComponent implements OnInit {
   readonly saving = signal(false);
   filterDana = 'ALL';
 
+  readonly migrasiList = signal<any[]>([]);
+  readonly migrasiFile = signal<File | null>(null);
+  readonly lastUploadedMigrasiName = signal('');
+  readonly uploadingMigrasi = signal(false);
+  readonly migrasiMessage = signal('');
+  migrasiFilterSumber = '';
+
   form = {
     sekolahId: 1,
     sumberDana: 'BOS',
@@ -158,6 +258,43 @@ export class DroppingDanaAdminComponent implements OnInit {
       this.form.sekolahId = this.auth.selectedSekolahId() || this.auth.sekolahList()[0]?.id || 1;
     }
     this.loadData();
+    this.loadMigrasiList();
+  }
+
+  onMigrasiFileSelected(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.migrasiFile.set(input.files[0]);
+    }
+  }
+
+  uploadMigrasiExcel(fileInput?: HTMLInputElement): void {
+    const f = this.migrasiFile();
+    if (!f) return;
+    const uploadedName = f.name;
+    this.uploadingMigrasi.set(true);
+    this.api.uploadMigrasiDanaExcel(f).subscribe({
+      next: (res) => {
+        this.uploadingMigrasi.set(false);
+        this.migrasiMessage.set(res.message);
+        this.lastUploadedMigrasiName.set(uploadedName);
+        this.toast.success(res.message);
+        this.migrasiFile.set(null);
+        if (fileInput) fileInput.value = '';
+        this.loadMigrasiList();
+      },
+      error: (err) => {
+        this.uploadingMigrasi.set(false);
+        this.toast.error(err?.error?.message || 'Gagal mengupload file Excel migrasi PASK.');
+      }
+    });
+  }
+
+  loadMigrasiList(): void {
+    this.api.getAdminMigrasiDana(this.auth.tahunAnggaran(), undefined, this.migrasiFilterSumber || undefined).subscribe({
+      next: (res) => this.migrasiList.set(res.data || []),
+      error: () => {}
+    });
   }
 
   onChangeSumberDana(): void {
@@ -200,100 +337,62 @@ export class DroppingDanaAdminComponent implements OnInit {
 }
 
 // =========================================================================
-// 2. KONVERSI & MONITORING RKAS (UPLOAD EXCEL VIA :5006)
+// 2. MIGRASI RKAS (HANYA UPLOAD FILE EXCEL)
 // =========================================================================
 @Component({
   selector: 'app-konversi-rkas',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe],
+  imports: [CommonModule, CurrencyPipe],
   template: `
-    <div class="d-flex justify-content-end align-items-center mb-3 flex-wrap gap-2">
-      <a class="btn btn-sm btn-neutral rounded-pill px-3" href="/file-uploader/api/file-uploader/template-rkas" target="_blank">
-        <i class="bi bi-download me-1"></i>Download Template Excel RKAS (.xlsx)
-      </a>
-    </div>
-
-    <div class="row g-3 mb-3">
-      <!-- Upload Excel Box -->
-      <div class="col-lg-5">
-        <div class="siap-card p-3 h-100">
-          <h6 class="fw-bold mb-2">1. Upload File Excel Konversi RKAS</h6>
-          <p class="text-muted small mb-3">Gunakan template resmi agar kolom Kode SNP, Kegiatan, Kode Akun BAS, dan Pagu terbaca otomatis.</p>
-          <div class="input-group mb-2">
-            <input type="file" class="form-control" accept=".xlsx,.xls" (change)="onFileSelected($event)">
-            <button class="btn btn-siap" (click)="uploadExcel()" [disabled]="!selectedFile() || uploading()">
-              @if (uploading()) { <span class="spinner-border spinner-border-sm me-1"></span>Upload... }
-              @else { <i class="bi bi-cloud-upload me-1"></i>Import RKAS }
-            </button>
-          </div>
-          @if (uploadMessage()) {
-            <div class="alert alert-success py-2 px-3 small mb-0">{{ uploadMessage() }}</div>
-          }
+    <div class="siap-card mb-3">
+      <div class="siap-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet text-warning me-2"></i>Upload Data Migrasi RKAS</h6>
+          <small class="text-muted">Unggah file Excel RKAS untuk mengimpor komponen anggaran secara otomatis ke sistem.</small>
         </div>
+        <a class="btn btn-sm btn-neutral rounded-pill px-3" href="/file-uploader/api/file-uploader/template-rkas" target="_blank">
+          <i class="bi bi-download me-1"></i>Download Template Excel RKAS (.xlsx)
+        </a>
       </div>
-
-      <!-- Form Tambah Komponen RKAS Manual -->
-      <div class="col-lg-7">
-        <div class="siap-card p-3 h-100">
-          <h6 class="fw-bold mb-2">2. Tambah Item Pagu RKAS Manual</h6>
-          <div class="row g-2">
-            <div class="col-md-4">
-              <label class="form-label small fw-semibold mb-1">Sekolah</label>
-              <select class="form-select form-select-sm" [(ngModel)]="manual.sekolahId" (ngModelChange)="loadRkas()">
-                @for (s of auth.sekolahList(); track s.id) {
-                  <option [ngValue]="s.id">{{ s.namaSekolah }}</option>
-                }
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold mb-1">Sumber Dana</label>
-              <select class="form-select form-select-sm" [(ngModel)]="manual.sumberDana" (ngModelChange)="loadRkas()">
-                <option value="BOS">BOS</option>
-                <option value="BOP">BOP</option>
-              </select>
-            </div>
-            <div class="col-md-5">
-              <label class="form-label small fw-semibold mb-1">Kode Rekening BAS</label>
-              <select class="form-select form-select-sm" [(ngModel)]="manual.kodeAkun" (ngModelChange)="onBasChange()">
-                <option value="">-- Pilih Akun BAS --</option>
-                @for (acc of basList(); track acc.kodeAkun) {
-                  <option [value]="acc.kodeAkun">{{ acc.kodeAkun }} - {{ acc.namaAkun }}</option>
-                }
-              </select>
-            </div>
-            <div class="col-md-5">
-              <label class="form-label small fw-semibold mb-1">Nama Komponen Belanja</label>
-              <input class="form-control form-control-sm" [(ngModel)]="manual.namaKomponen" placeholder="Kertas HVS / Honor Ekskul">
-            </div>
-            <div class="col-md-2">
-              <label class="form-label small fw-semibold mb-1">Volume</label>
-              <input type="number" class="form-control form-control-sm" [(ngModel)]="manual.volume" min="1">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold mb-1">Harga Satuan</label>
-              <input type="number" class="form-control form-control-sm" [(ngModel)]="manual.hargaSatuan" min="1000">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-              <button class="btn btn-sm btn-siap w-100" (click)="saveManual()">+ Tambah</button>
-            </div>
-          </div>
+      <div class="p-4">
+        <div class="input-group mb-2" style="max-width: 680px;">
+          <input #rkasFileInput type="file" class="form-control" accept=".xlsx,.xls" (change)="onFileSelected($event)">
+          <button class="btn btn-siap px-4" (click)="uploadExcel(rkasFileInput)" [disabled]="!selectedFile() || uploading()">
+            @if (uploading()) { <span class="spinner-border spinner-border-sm me-1"></span>Mengunggah... }
+            @else { <i class="bi bi-cloud-upload me-1"></i>Upload Migrasi RKAS }
+          </button>
         </div>
+        @if (selectedFile(); as sf) {
+          <div class="small text-primary mb-2">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>File dipilih: <strong>{{ sf.name }}</strong> (klik Upload Migrasi RKAS)
+          </div>
+        } @else if (lastUploadedRkasName()) {
+          <div class="small text-success fw-semibold mb-2">
+            <i class="bi bi-check-circle-fill me-1"></i>File sudah diupload: <strong>{{ lastUploadedRkasName() }}</strong>
+          </div>
+        }
+        @if (uploadMessage()) {
+          <div class="alert alert-success py-2 px-3 small mb-0">{{ uploadMessage() }}</div>
+        }
+        @if (uploadError()) {
+          <div class="alert alert-danger py-2 px-3 small mb-0">{{ uploadError() }}</div>
+        }
       </div>
     </div>
 
-    <!-- Tabel RKAS -->
+    <!-- Daftar Hasil Migrasi RKAS (Read-Only) -->
     <div class="siap-card">
       <div class="siap-card-header d-flex justify-content-between align-items-center">
         <div>
-          <h6 class="fw-bold mb-0">Daftar Komponen RKAS ({{ manual.sumberDana }} TA {{ auth.tahunAnggaran() }})</h6>
+          <h6 class="fw-bold mb-0">Hasil Data RKAS (TA {{ auth.tahunAnggaran() }})</h6>
           <small class="text-muted">Total Pagu: <strong class="text-dark">{{ totalPagu() | currency:'IDR':'symbol':'1.0-0' }}</strong> · Realisasi: <strong class="text-success">{{ totalRealisasi() | currency:'IDR':'symbol':'1.0-0' }}</strong></small>
         </div>
         <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="loadRkas()">
-          <i class="bi bi-arrow-clockwise me-1"></i>Refresh RKAS
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
         </button>
       </div>
       <div class="table-responsive">
-        <table class="table table-siap table-hover">
+        <table class="table table-siap table-hover mb-0">
           <thead>
             <tr>
               <th>SNP / Kegiatan</th>
@@ -307,7 +406,7 @@ export class DroppingDanaAdminComponent implements OnInit {
           </thead>
           <tbody>
             @if (items().length === 0) {
-              <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada data RKAS pada filter terpilih.</td></tr>
+              <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada data RKAS tersimpan.</td></tr>
             }
             @for (r of items(); track r.id) {
               <tr>
@@ -341,20 +440,12 @@ export class KonversiRkasComponent implements OnInit {
   private readonly toast = inject(ToastService);
 
   readonly items = signal<RkasItem[]>([]);
-  readonly basList = signal<any[]>([]);
   readonly selectedFile = signal<File | null>(null);
+  readonly lastUploadedRkasName = signal('');
   readonly uploading = signal(false);
   readonly uploadMessage = signal('');
-
-  manual = {
-    sekolahId: 1,
-    sumberDana: 'BOS',
-    kodeAkun: '',
-    namaAkun: '',
-    namaKomponen: '',
-    volume: 10,
-    hargaSatuan: 50000
-  };
+  readonly uploadError = signal('');
+  private sekolahId = 1;
 
   readonly totalPagu = computed(() => this.items().reduce((acc, i) => acc + i.totalPagu, 0));
   readonly totalRealisasi = computed(() => this.items().reduce((acc, i) => acc + i.totalRealisasi, 0));
@@ -363,86 +454,53 @@ export class KonversiRkasComponent implements OnInit {
     if (this.auth.sekolahList().length === 0) {
       this.auth.loadSekolahOptions().subscribe((res) => {
         if (res.data?.length) {
-          this.manual.sekolahId = this.auth.selectedSekolahId() || res.data[0].id;
+          this.sekolahId = this.auth.selectedSekolahId() || res.data[0].id;
           this.loadRkas();
         }
       });
     } else {
-      this.manual.sekolahId = this.auth.selectedSekolahId() || 1;
+      this.sekolahId = this.auth.selectedSekolahId() || 1;
       this.loadRkas();
     }
-    this.api.getBasAccounts().subscribe({
-      next: (res) => this.basList.set(res.data || [])
-    });
   }
 
   onFileSelected(e: Event): void {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       this.selectedFile.set(input.files[0]);
+      this.uploadError.set('');
+      this.uploadMessage.set('');
     }
   }
 
-  uploadExcel(): void {
+  uploadExcel(fileInput?: HTMLInputElement): void {
     const f = this.selectedFile();
     if (!f) return;
+    const uploadedName = f.name;
     this.uploading.set(true);
+    this.uploadError.set('');
+    this.uploadMessage.set('');
     this.api.uploadRkasExcel(f).subscribe({
       next: (res) => {
         this.uploading.set(false);
         this.uploadMessage.set(res.message);
+        this.lastUploadedRkasName.set(uploadedName);
         this.toast.success(res.message);
         this.selectedFile.set(null);
+        if (fileInput) fileInput.value = '';
         this.loadRkas();
       },
       error: (err) => {
         this.uploading.set(false);
-        this.toast.error(err?.error?.message || 'Gagal mengupload file Excel RKAS.');
+        const msg = err?.error?.message || 'Gagal mengupload file Excel RKAS.';
+        this.uploadError.set(msg);
+        this.toast.error(msg);
       }
     });
   }
 
-  onBasChange(): void {
-    const found = this.basList().find((b) => b.kodeAkun === this.manual.kodeAkun);
-    if (found) this.manual.namaAkun = found.namaAkun;
-  }
-
-  saveManual(): void {
-    if (!this.manual.kodeAkun || !this.manual.namaKomponen.trim()) {
-      this.toast.error('Kode Akun BAS dan Nama Komponen wajib diisi.');
-      return;
-    }
-    this.api
-      .createRkasItem({
-        sekolahId: Number(this.manual.sekolahId),
-        tahunAnggaran: this.auth.tahunAnggaran(),
-        sumberDana: this.manual.sumberDana,
-        kodePeriode: this.manual.sumberDana === 'BOS' ? '01' : 'TW2',
-        kodeSnp: '05',
-        namaSnp: 'Pengembangan Sarana dan Prasarana Sekolah',
-        kodeKegiatan: '05.05.01',
-        namaKegiatan: 'Pemeliharaan & Pengadaan Operasional Sekolah',
-        kodeAkun: this.manual.kodeAkun,
-        namaAkun: this.manual.namaAkun,
-        kodeKomponen: `KMP-${Date.now().toString().slice(-4)}`,
-        namaKomponen: this.manual.namaKomponen.trim(),
-        spesifikasi: 'Input Manual Admin',
-        satuan: 'Paket',
-        volume: Number(this.manual.volume),
-        hargaSatuan: Number(this.manual.hargaSatuan)
-      })
-      .subscribe({
-        next: (res) => {
-          this.toast.success(res.message);
-          this.manual.namaKomponen = '';
-          this.loadRkas();
-        },
-        error: (err) => this.toast.error(err?.error?.message || 'Gagal menambah komponen RKAS.')
-      });
-  }
-
   loadRkas(): void {
-    this.api.getRkasItems(Number(this.manual.sekolahId), this.auth.tahunAnggaran(), this.manual.sumberDana).subscribe({
+    this.api.getRkasItems(this.sekolahId, this.auth.tahunAnggaran(), 'BOS').subscribe({
       next: (res) => this.items.set(res.data || []),
       error: (err) => this.toast.error(err?.error?.message || 'Gagal memuat RKAS.')
     });
@@ -455,9 +513,9 @@ export class KonversiRkasComponent implements OnInit {
 @Component({
   selector: 'app-batas-pengajuan',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TablePaginationComponent],
   template: `
-    <div class="siap-card">
+    <div class="siap-card overflow-hidden">
       <div class="siap-card-header d-flex justify-content-between align-items-center">
         <div>
           <h6 class="fw-bold mb-0"><i class="bi bi-calendar-check text-warning me-2"></i>Pengaturan Batas Waktu Pengajuan Belanja (TA {{ auth.tahunAnggaran() }})</h6>
@@ -481,7 +539,7 @@ export class KonversiRkasComponent implements OnInit {
             </tr>
           </thead>
           <tbody>
-            @for (p of periodes(); track p.id) {
+            @for (p of pagedPeriodes(); track p.id) {
               <tr>
                 <td>
                   <span class="badge-neutral">{{ p.sumberDana }}</span>
@@ -508,6 +566,7 @@ export class KonversiRkasComponent implements OnInit {
           </tbody>
         </table>
       </div>
+      <app-table-pagination [totalItems]="periodes().length" itemLabel="periode" [(page)]="page" [(pageSize)]="pageSize" />
     </div>
   `
 })
@@ -517,6 +576,12 @@ export class BatasPengajuanComponent implements OnInit {
   private readonly toast = inject(ToastService);
 
   readonly periodes = signal<any[]>([]);
+  readonly page = signal(1);
+  readonly pageSize = signal(10);
+
+  readonly pagedPeriodes = computed(() =>
+    slicePaged(this.periodes(), this.page(), this.pageSize())
+  );
 
   ngOnInit(): void {
     this.load();
@@ -530,6 +595,7 @@ export class BatasPengajuanComponent implements OnInit {
           batasDateStr: p.batasPengajuanBelanja ? String(p.batasPengajuanBelanja).substring(0, 10) : '2026-12-31'
         }));
         this.periodes.set(mapped);
+        this.page.set(1);
       }
     });
   }

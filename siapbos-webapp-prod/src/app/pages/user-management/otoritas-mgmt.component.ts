@@ -5,11 +5,12 @@ import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
+import { TablePaginationComponent, slicePaged } from '../../shared/components/table-pagination.component';
 
 @Component({
   selector: 'app-otoritas-mgmt',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TablePaginationComponent],
   template: `
     <!-- TAB HEADER -->
     <ul class="nav nav-pills gap-2 mb-3">
@@ -59,7 +60,7 @@ import { ToastService } from '../../core/services/toast.service';
               </tr>
             </thead>
             <tbody>
-              @for (r of roles(); track r.id) {
+              @for (r of pagedRoles(); track r.id) {
                 <tr>
                   <td>
                     <span class="badge badge-role rounded-pill px-2 py-1">{{ r.roleCode }}</span>
@@ -96,6 +97,7 @@ import { ToastService } from '../../core/services/toast.service';
             </tbody>
           </table>
         </div>
+        <app-table-pagination [totalItems]="roles().length" itemLabel="otoritas" [(page)]="rolePage" [(pageSize)]="rolePageSize" />
       </div>
     }
 
@@ -122,7 +124,7 @@ import { ToastService } from '../../core/services/toast.service';
               </tr>
             </thead>
             <tbody>
-              @for (a of apps(); track a.id) {
+              @for (a of pagedApps(); track a.id) {
                 <tr>
                   <td><span class="badge badge-neutral rounded-pill">{{ a.sortOrder }}</span></td>
                   <td><code class="fw-bold">{{ a.kodeAplikasi }}</code></td>
@@ -150,6 +152,7 @@ import { ToastService } from '../../core/services/toast.service';
             </tbody>
           </table>
         </div>
+        <app-table-pagination [totalItems]="apps().length" itemLabel="aplikasi" [(page)]="appPage" [(pageSize)]="appPageSize" />
       </div>
     }
 
@@ -157,14 +160,14 @@ import { ToastService } from '../../core/services/toast.service';
     @if (activeTab() === 'menu') {
       <div class="siap-card p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="d-flex flex-wrap align-items-center gap-2">
-          <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="menuAppFilter" (ngModelChange)="loadMenus()">
+          <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="menuAppFilter" (ngModelChange)="menuPage.set(1); loadMenus()">
             <option value="">Semua Aplikasi</option>
             @for (a of apps(); track a.id) {
               <option [value]="a.kodeAplikasi">{{ a.kodeAplikasi }} - {{ a.nama }}</option>
             }
           </select>
           <input type="text" class="form-control form-control-sm" style="width: 240px;"
-                 [ngModel]="menuSearch()" (ngModelChange)="menuSearch.set($event)"
+                 [ngModel]="menuSearch()" (ngModelChange)="menuSearch.set($event); menuPage.set(1)"
                  placeholder="Cari nama menu atau route...">
         </div>
         <button type="button" class="btn btn-sm btn-siap rounded-pill px-3" (click)="openMenuCreate()">
@@ -186,7 +189,7 @@ import { ToastService } from '../../core/services/toast.service';
               </tr>
             </thead>
             <tbody>
-              @for (m of filteredMenus(); track m.id) {
+              @for (m of pagedMenus(); track m.id) {
                 <tr>
                   <td><span class="badge badge-neutral rounded-pill">{{ m.kodeAplikasi }}</span></td>
                   <td class="fw-semibold text-dark">
@@ -209,7 +212,7 @@ import { ToastService } from '../../core/services/toast.service';
                   </td>
                   <td class="text-end">
                     <button type="button" class="btn btn-sm btn-neutral rounded-pill px-3" (click)="openMenuEdit(m)">
-                      <i class="bi bi-pencil"></i>
+                      <i class="bi bi-pencil me-1"></i>Sunting
                     </button>
                   </td>
                 </tr>
@@ -217,6 +220,7 @@ import { ToastService } from '../../core/services/toast.service';
             </tbody>
           </table>
         </div>
+        <app-table-pagination [totalItems]="filteredMenus().length" itemLabel="sub-menu" [(page)]="menuPage" [(pageSize)]="menuPageSize" />
       </div>
     }
 
@@ -225,7 +229,7 @@ import { ToastService } from '../../core/services/toast.service';
       <div class="modal-backdrop-custom" (click)="showRoleModal.set(false)">
         <div class="modal-dialog-custom" style="max-width: 520px;" (click)="$event.stopPropagation()">
           <div class="siap-card-header d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0">{{ editRoleId() ? 'Sunting Otoritas' : 'Tambah Otoritas Baru' }}</h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-shield-lock me-2 text-warning-emphasis"></i>{{ editRoleId() ? 'Sunting Otoritas' : 'Tambah Otoritas Baru' }}</h6>
             <button type="button" class="btn-close btn-sm" (click)="showRoleModal.set(false)"></button>
           </div>
           <div class="modal-body-scroll">
@@ -261,10 +265,12 @@ import { ToastService } from '../../core/services/toast.service';
                 <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="roleForm.deskripsi"></textarea>
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="showRoleModal.set(false)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveRole()">Simpan</button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="showRoleModal.set(false)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveRole()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan
+            </button>
           </div>
         </div>
       </div>
@@ -316,10 +322,12 @@ import { ToastService } from '../../core/services/toast.service';
                 </div>
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="appMatrixRole.set(null)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveAppMatrix()">Simpan Aplikasi</button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="appMatrixRole.set(null)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveAppMatrix()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan Aplikasi
+            </button>
           </div>
         </div>
       </div>
@@ -384,13 +392,12 @@ import { ToastService } from '../../core/services/toast.service';
                 </div>
               </div>
             </div>
-
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="menuMatrixRole.set(null)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveMenuMatrix()">
-                Simpan Hak Sub-Menu
-              </button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="menuMatrixRole.set(null)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveMenuMatrix()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan Hak Sub-Menu
+            </button>
           </div>
         </div>
       </div>
@@ -399,9 +406,9 @@ import { ToastService } from '../../core/services/toast.service';
     <!-- MODAL EDIT APLIKASI -->
     @if (editingApp(); as app) {
       <div class="modal-backdrop-custom" (click)="editingApp.set(null)">
-        <div class="modal-dialog-custom" style="max-width: 500px;" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-custom" style="max-width: 520px;" (click)="$event.stopPropagation()">
           <div class="siap-card-header d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0">Sunting Aplikasi: {{ app.kodeAplikasi }}</h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-grid-1x2 me-2 text-warning-emphasis"></i>Sunting Aplikasi: {{ app.kodeAplikasi }}</h6>
             <button type="button" class="btn-close btn-sm" (click)="editingApp.set(null)"></button>
           </div>
           <div class="modal-body-scroll">
@@ -429,10 +436,12 @@ import { ToastService } from '../../core/services/toast.service';
                 </div>
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="editingApp.set(null)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveAppEdit()">Simpan</button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="editingApp.set(null)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveAppEdit()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan
+            </button>
           </div>
         </div>
       </div>
@@ -441,9 +450,9 @@ import { ToastService } from '../../core/services/toast.service';
     <!-- MODAL TAMBAH / EDIT SUB-MENU -->
     @if (showMenuModal()) {
       <div class="modal-backdrop-custom" (click)="showMenuModal.set(false)">
-        <div class="modal-dialog-custom" style="max-width: 520px;" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-custom" style="max-width: 540px;" (click)="$event.stopPropagation()">
           <div class="siap-card-header d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0">{{ editMenuId() ? 'Sunting Sub-Menu' : 'Tambah Sub-Menu Baru' }}</h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-list-nested me-2 text-warning-emphasis"></i>{{ editMenuId() ? 'Sunting Sub-Menu' : 'Tambah Sub-Menu Baru' }}</h6>
             <button type="button" class="btn-close btn-sm" (click)="showMenuModal.set(false)"></button>
           </div>
           <div class="modal-body-scroll">
@@ -472,7 +481,7 @@ import { ToastService } from '../../core/services/toast.service';
                 <label class="form-label small fw-semibold mb-1">Ikon Bootstrap</label>
                 <input class="form-control form-control-sm" [(ngModel)]="menuForm.icon">
               </div>
-              <div class="col-12 d-flex gap-4">
+              <div class="col-12 d-flex flex-wrap gap-4">
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="chkMenuSekolah" [(ngModel)]="menuForm.requiresSekolah">
                   <label class="form-check-label small fw-semibold" for="chkMenuSekolah">Wajib Pilih Sekolah (DataTables)</label>
@@ -483,10 +492,12 @@ import { ToastService } from '../../core/services/toast.service';
                 </div>
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
-              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="showMenuModal.set(false)">Batal</button>
-              <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveMenuForm()">Simpan</button>
-            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="showMenuModal.set(false)">Batal</button>
+            <button type="button" class="btn btn-siap rounded-pill px-4" [disabled]="saving()" (click)="saveMenuForm()">
+              <i class="bi bi-check2-circle me-1"></i>Simpan
+            </button>
           </div>
         </div>
       </div>
@@ -507,6 +518,13 @@ export class OtoritasMgmtComponent implements OnInit {
 
   menuAppFilter = '';
   readonly menuSearch = signal('');
+
+  readonly rolePage = signal(1);
+  readonly rolePageSize = signal(10);
+  readonly appPage = signal(1);
+  readonly appPageSize = signal(10);
+  readonly menuPage = signal(1);
+  readonly menuPageSize = signal(10);
 
   // Role modal
   readonly showRoleModal = signal(false);
@@ -540,6 +558,10 @@ export class OtoritasMgmtComponent implements OnInit {
       m.nama?.toLowerCase().includes(q) || m.link?.toLowerCase().includes(q)
     );
   });
+
+  readonly pagedRoles = computed(() => slicePaged(this.roles(), this.rolePage(), this.rolePageSize()));
+  readonly pagedApps = computed(() => slicePaged(this.apps(), this.appPage(), this.appPageSize()));
+  readonly pagedMenus = computed(() => slicePaged(this.filteredMenus(), this.menuPage(), this.menuPageSize()));
 
   ngOnInit(): void {
     const tab = this.route.snapshot.data['tab'] as 'otoritas' | 'aplikasi' | 'menu' | undefined;
