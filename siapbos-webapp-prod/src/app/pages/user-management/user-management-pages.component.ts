@@ -501,3 +501,88 @@ export class OtoritasMgmtComponent implements OnInit {
     this.api.getMenus().subscribe({ next: (res) => this.menus.set(res.data || []) });
   }
 }
+
+// =========================================================================
+// 4. MASTER PAJAK (PPh 21, 22, 23, Pasal 4(2), PPN) & BAGAN AKUN STANDAR
+// =========================================================================
+@Component({
+  selector: 'app-pajak-mgmt',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="siap-card h-100">
+          <div class="siap-card-header">
+            <h6 class="fw-bold mb-0"><i class="bi bi-percent text-warning me-2"></i>Master Pajak MPN G3 (siap.trpotspm)</h6>
+            <small class="text-muted">Tarif Pajak PPh 21, 22, 23, Pasal 4(2) &amp; PPN 11% untuk pemotongan SPJ BOSP &amp; BOP.</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-siap table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Jenis Pajak</th>
+                  <th>MAP / Setoran</th>
+                  <th class="text-end">Tarif</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of taxes(); track t.id) {
+                  <tr>
+                    <td><span class="badge text-bg-warning text-dark">{{ t.kodeTrxPajak }}</span></td>
+                    <td>
+                      <div class="fw-semibold">{{ t.namaPajak }}</div>
+                      <small class="text-muted">{{ t.keterangan }}</small>
+                    </td>
+                    <td><code>{{ t.kodeMap }} / {{ t.kodeJenisSetoran }}</code></td>
+                    <td class="text-end fw-bold">{{ t.tarifPersen }}%</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="siap-card h-100">
+          <div class="siap-card-header">
+            <h6 class="fw-bold mb-0"><i class="bi bi-journal-code text-warning me-2"></i>Master Bagan Akun Standar (siap.trbas)</h6>
+            <small class="text-muted">Kode Rekening Belanja Barang, Jasa, Pemeliharaan &amp; Modal Satuan Pendidikan.</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-siap table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Kode Akun</th>
+                  <th>Uraian Rekening</th>
+                  <th>Kelompok</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (b of basList(); track b.id) {
+                  <tr>
+                    <td><code>{{ b.kodeAkun }}</code></td>
+                    <td class="fw-semibold">{{ b.namaAkun }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ b.kelompok }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class PajakMgmtComponent implements OnInit {
+  private readonly api = inject(SiapBosApiService);
+  readonly taxes = signal<any[]>([]);
+  readonly basList = signal<any[]>([]);
+
+  ngOnInit(): void {
+    this.api.getTaxMasters().subscribe({ next: (res) => this.taxes.set(res.data || []) });
+    this.api.getBasAccounts().subscribe({ next: (res) => this.basList.set(res.data || []) });
+  }
+}
