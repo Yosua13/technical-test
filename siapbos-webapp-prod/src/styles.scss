@@ -1,23 +1,52 @@
 :root {
   --siap-orange: #FF9A00;
   --siap-orange-dark: #E68900;
+  --siap-orange-soft: #FFF7ED;
+  --siap-orange-text: #C2410C;
   --siap-orange-deep: #FF3800;
-  --siap-amber-soft: #FFF4E0;
-  --siap-navy: #1E293B;
-  --siap-navy-mid: #334155;
-  --siap-navy-soft: #475569;
-  --siap-accent-red: #FF3800;
-  --siap-bg: #F7F8FC;
+  --siap-slate-900: #0F172A;
+  --siap-slate-700: #334155;
+  --siap-slate-500: #64748B;
+  --siap-bg: #F1F5F9;
   --siap-surface: #FFFFFF;
-  --siap-border: rgba(255, 154, 0, 0.16);
+  --siap-border: #E2E8F0;
   --siap-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --siap-ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #FF9A00 #F1F5F9;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FFB340 0%, #FF9A00 100%);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #FF9A00 0%, #E67E00 100%);
 }
 
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: var(--siap-bg);
-  color: #1e293b;
+  color: var(--siap-slate-900);
   font-size: 0.9rem;
   -webkit-font-smoothing: antialiased;
 }
@@ -26,31 +55,30 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Official SIAP BOS Logo Badge (ensures white Logo.png is always high-contrast & crystal clear) */
+/* Official SIAP BOS Logo Emblem (high-contrast container for white Logo.png) */
 .siap-logo-emblem {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #FF9A00 0%, #FF7700 100%);
-  border-radius: 16px;
-  padding: 8px 12px;
-  box-shadow: 0 8px 22px rgba(255, 154, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
-  border: 2px solid rgba(255, 255, 255, 0.65);
+  background: linear-gradient(135deg, #FF9A00 0%, #E67E00 100%);
+  border-radius: 12px;
+  padding: 6px 8px;
+  box-shadow: 0 3px 10px rgba(255, 154, 0, 0.25);
 }
 
 .siap-logo-emblem img {
   display: block;
   object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
 }
 
 /* ==========================================================================
-   PROFESSIONAL UX MOTION CHOREOGRAPHY
+   UX MOTION CHOREOGRAPHY
    ========================================================================== */
 @keyframes pageReveal {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -61,7 +89,7 @@ body {
 @keyframes cardStagger {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(14px) scale(0.99);
   }
   to {
     opacity: 1;
@@ -72,7 +100,7 @@ body {
 @keyframes modalPop {
   from {
     opacity: 0;
-    transform: scale(0.94) translateY(12px);
+    transform: scale(0.95) translateY(10px);
   }
   to {
     opacity: 1;
@@ -102,23 +130,18 @@ body {
 }
 
 @keyframes pulseRing {
-  0% { box-shadow: 0 0 0 0 rgba(255, 154, 0, 0.55); }
-  70% { box-shadow: 0 0 0 8px rgba(255, 154, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 154, 0, 0); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
 .animate-page {
-  animation: pageReveal 0.42s var(--siap-ease-out) both;
+  animation: pageReveal 0.34s var(--siap-ease-out) both;
 }
 
 .animate-stagger {
-  animation: cardStagger 0.48s var(--siap-ease-out) both;
-  animation-delay: calc(var(--stagger, 0) * 65ms);
+  animation: cardStagger 0.42s var(--siap-ease-out) both;
+  animation-delay: calc(var(--stagger, 0) * 55ms);
 }
 
 .animate-float {
@@ -126,37 +149,31 @@ body {
 }
 
 .pulse-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background-color: #FF9A00;
+  background-color: #10B981;
   display: inline-block;
   animation: pulseRing 2.2s infinite;
 }
 
-.siap-skeleton {
-  background: linear-gradient(90deg, #fff3e0 25%, #fff8eb 50%, #fff3e0 75%);
-  background-size: 800px 100%;
-  animation: shimmer 1.4s infinite linear;
-  border-radius: 10px;
-}
-
 /* ==========================================================================
-   CREATIVE #FF9A00 SURFACES & CONTROLS
+   CALM EXECUTIVE SURFACES & RESTRAINED #FF9A00 PRIMARY CTA HIERARCHY
    ========================================================================== */
 .btn-siap {
-  background: linear-gradient(135deg, #FF9A00 0%, #E67E00 100%);
-  border: none;
+  background-color: var(--siap-orange);
+  border: 1px solid var(--siap-orange);
   color: #fff !important;
-  font-weight: 700;
-  box-shadow: 0 4px 14px rgba(255, 154, 0, 0.32);
-  transition: transform 0.2s var(--siap-ease-out), box-shadow 0.2s var(--siap-ease-out), filter 0.2s ease;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(255, 154, 0, 0.25);
+  transition: background-color 0.18s ease, transform 0.18s var(--siap-ease-out), box-shadow 0.18s ease;
 }
 
 .btn-siap:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(255, 154, 0, 0.44);
-  filter: brightness(1.04);
+  background-color: var(--siap-orange-dark);
+  border-color: var(--siap-orange-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(255, 154, 0, 0.32);
 }
 
 .btn-siap:active:not(:disabled) {
@@ -164,83 +181,111 @@ body {
 }
 
 .btn-navy {
-  background: linear-gradient(135deg, #FF3800 0%, #FF7700 100%);
-  border: none;
+  background-color: var(--siap-slate-900);
+  border: 1px solid var(--siap-slate-900);
   color: #fff !important;
-  font-weight: 700;
-  box-shadow: 0 4px 14px rgba(255, 56, 0, 0.25);
-  transition: transform 0.2s var(--siap-ease-out), box-shadow 0.2s var(--siap-ease-out);
+  font-weight: 600;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
 .btn-navy:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(255, 56, 0, 0.35);
+  background-color: #1E293B;
+  transform: translateY(-1px);
+}
+
+.btn-neutral {
+  background-color: #F8FAFC;
+  border: 1px solid #CBD5E1;
+  color: #334155 !important;
+  font-weight: 600;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.btn-neutral:hover:not(:disabled) {
+  background-color: #F1F5F9;
+  border-color: #94A3B8;
+  color: #0F172A !important;
 }
 
 .siap-card {
-  border: 1px solid rgba(255, 154, 0, 0.14);
-  border-radius: 18px;
+  border: 1px solid var(--siap-border);
+  border-radius: 14px;
   background: var(--siap-surface);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03), 0 10px 26px rgba(255, 154, 0, 0.05);
-  transition: transform 0.25s var(--siap-ease-out), box-shadow 0.25s var(--siap-ease-out), border-color 0.25s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.02);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .siap-card-interactive:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 154, 0, 0.55);
-  box-shadow: 0 14px 32px rgba(255, 154, 0, 0.14);
+  transform: translateY(-3px);
+  border-color: #CBD5E1;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
 }
 
 .siap-card-header {
-  background: linear-gradient(90deg, rgba(255, 154, 0, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
-  border-bottom: 1px solid rgba(255, 154, 0, 0.15);
-  padding: 1rem 1.25rem;
-  border-radius: 18px 18px 0 0;
+  background: #F8FAFC;
+  border-bottom: 1px solid var(--siap-border);
+  padding: 0.95rem 1.25rem;
+  border-radius: 14px 14px 0 0;
+}
+
+/* Neutral Pill Badge Helpers (instead of loud amber badges everywhere) */
+.badge-neutral {
+  background-color: #F1F5F9;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+  font-weight: 600;
+}
+
+.badge-role {
+  background-color: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #DBEAFE;
+  font-weight: 600;
 }
 
 .table-siap {
-  font-size: 0.84rem;
+  font-size: 0.855rem;
   margin-bottom: 0;
 }
 
 .table-siap thead th {
-  background-color: #FFF9F0;
-  color: #7C2D12;
+  background-color: #F8FAFC;
+  color: #475569;
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 154, 0, 0.22);
+  border-bottom: 1px solid #E2E8F0;
   white-space: nowrap;
-  padding: 0.8rem 0.85rem;
+  padding: 0.9rem 1.05rem;
 }
 
 .table-siap tbody tr {
-  transition: background-color 0.16s ease, transform 0.16s ease;
+  transition: background-color 0.14s ease;
 }
 
 .table-siap tbody td {
   vertical-align: middle;
-  padding: 0.75rem 0.85rem;
-  border-color: #f1f5f9;
+  padding: 0.95rem 1.05rem;
+  border-color: #F1F5F9;
+  color: #1E293B;
 }
 
 .summary-kpi-card {
-  border-radius: 16px;
-  border: 1px solid rgba(255, 154, 0, 0.18);
-  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--siap-border);
+  background: #FFFFFF;
   padding: 1.05rem 1.2rem;
   height: 100%;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(255, 154, 0, 0.05);
-  transition: transform 0.25s var(--siap-ease-out), box-shadow 0.25s var(--siap-ease-out), border-color 0.25s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s var(--siap-ease-out), box-shadow 0.2s ease;
 }
 
 .summary-kpi-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 28px rgba(255, 154, 0, 0.12);
-  border-color: rgba(255, 154, 0, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
 }
 
 .summary-kpi-card::before {
@@ -249,13 +294,13 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 5px;
-  background: var(--kpi-accent, #FF9A00);
+  width: 4px;
+  background: var(--kpi-accent, #94A3B8);
 }
 
 .progress {
   border-radius: 999px;
-  background-color: #FFF0D4;
+  background-color: #E2E8F0;
   overflow: hidden;
 }
 
@@ -267,8 +312,8 @@ body {
 .modal-backdrop-custom {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(5px);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
   z-index: 1050;
   display: flex;
   align-items: center;
@@ -279,14 +324,14 @@ body {
 
 .modal-dialog-custom {
   background: #fff;
-  border-radius: 20px;
+  border-radius: 16px;
   width: 100%;
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.24);
   overflow: hidden;
-  animation: modalPop 0.28s var(--siap-ease-spring) both;
+  animation: modalPop 0.24s var(--siap-ease-spring) both;
 }
 
 .modal-body-scroll {
@@ -297,6 +342,27 @@ body {
 .toast-animated {
   animation: toastSlideIn 0.32s var(--siap-ease-spring) both;
   border-radius: 12px !important;
+}
+
+/* Sleek thinner scrollbar for sidebar navigation list */
+@supports not selector(::-webkit-scrollbar) {
+  .sidebar-scroll-nav {
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E1 transparent;
+  }
+}
+.sidebar-scroll-nav::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-scroll-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll-nav::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 999px;
+}
+.sidebar-scroll-nav::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
 
 @media (prefers-reduced-motion: reduce) {
