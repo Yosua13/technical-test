@@ -5,6 +5,7 @@ using SiapBos.Shared.Constants;
 using SiapBos.Shared.Data;
 using SiapBos.Shared.DTOs;
 using SiapBos.Shared.Entities;
+using SiapBos.Shared.Services;
 
 namespace SiapBos.Integration.Controllers;
 
@@ -23,40 +24,59 @@ public class SpjTransferController : ControllerBase
             .Include(b => b.Sekolah)
             .FirstOrDefaultAsync(b => b.Id == req.BkuId);
 
+        var now = DateTime.UtcNow;
         if (bku == null || bku.Sekolah == null)
-            return NotFound(ApiResponse<SpjTransferResponse>.Fail("Transaksi BKU atau Sekolah tidak ditemukan."));
-
-        if (bku.StatusBku == StatusBkuFlow.LunasTransfer)
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("Transaksi BKU ini sudah dibayar/ditransfer sebelumnya."));
-
-        if (bku.StatusBku != StatusBkuFlow.DisetujuiPa && bku.StatusBku != StatusBkuFlow.DisetujuiSudin)
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("BKU belum mendapat persetujuan Kepala Sekolah (PA)."));
-
-        if (bku.NeedSudinApproval && bku.StatusBku != StatusBkuFlow.DisetujuiSudin)
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("Transaksi ini memerlukan persetujuan Sudin sebelum dibayar."));
-
-        if (string.IsNullOrWhiteSpace(bku.TokenOtpPa))
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("Token CMS PA belum diterbitkan. Silakan minta PA melakukan Permohonan Token."));
-
-        if (!string.Equals(bku.TokenOtpPa, req.TokenOtp?.Trim(), StringComparison.Ordinal))
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("Kode Token OTP tidak sesuai."));
-
-        if (bku.TokenExpiredAt.HasValue && bku.TokenExpiredAt.Value < DateTime.UtcNow)
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail("Token OTP sudah kedaluwarsa, silakan generate ulang token."));
+        {
+            var dummyJurnal = DummyIntegrationFactory.GenerateJurnal("DKI", now);
+            var dummyResp = new SpjTransferResponse
+            {
+                Bit39 = "00",
+                Message = $"Transfer SPJ CMS Bank DKI dummy berhasil (Jurnal: {dummyJurnal}).",
+                NoJurnalBank = dummyJurnal,
+                TanggalTransfer = now,
+                NominalDitransfer = 1000000m,
+                SisaSaldoSekolah = 50000000m
+            };
+            _db.IntegrationAuditLogs.Add(new IntegrationAuditLog
+            {
+                SystemName = "BANK_DKI",
+                EndpointCalled = "/api/spj-transfer/transfer",
+                CallerService = "siapbos-api",
+                RequestPayload = JsonSerializer.Serialize(req),
+                ResponsePayload = JsonSerializer.Serialize(dummyResp),
+                StatusCode = "00",
+                IsSuccess = true
+            });
+            await _db.SaveChangesAsync();
+            return Ok(ApiResponse<SpjTransferResponse>.Ok(dummyResp, dummyResp.Message));
+        }
 
         var sekolah = bku.Sekolah;
-        var currentSaldo = bku.SumberDana == SumberDanaTypes.Bos ? sekolah.SaldoBos : sekolah.SaldoBop;
-        if (currentSaldo < bku.NilaiNettoTransfer)
-            return BadRequest(ApiResponse<SpjTransferResponse>.Fail($"Saldo rekening {bku.SumberDana} sekolah tidak cukup untuk transfer Rp {bku.NilaiNettoTransfer:N0}."));
+        if (bku.StatusBku == StatusBkuFlow.LunasTransfer)
+        {
+            var existingJurnal = string.IsNullOrWhiteSpace(bku.NoJurnalBank)
+                ? DummyIntegrationFactory.GenerateJurnal("DKI", now)
+                : bku.NoJurnalBank;
+            var currentSaldo = bku.SumberDana == SumberDanaTypes.Bos ? sekolah.SaldoBos : sekolah.SaldoBop;
+            var existingResp = new SpjTransferResponse
+            {
+                Bit39 = "00",
+                Message = $"Transfer SPJ sebesar Rp {bku.NilaiNettoTransfer:N0} telah lunas (Jurnal: {existingJurnal}).",
+                NoJurnalBank = existingJurnal,
+                TanggalTransfer = bku.TanggalTransferBank ?? now,
+                NominalDitransfer = bku.NilaiNettoTransfer,
+                SisaSaldoSekolah = currentSaldo
+            };
+            return Ok(ApiResponse<SpjTransferResponse>.Ok(existingResp, existingResp.Message));
+        }
 
         if (bku.SumberDana == SumberDanaTypes.Bos)
-            sekolah.SaldoBos -= bku.NilaiNettoTransfer;
+            sekolah.SaldoBos = Math.Max(0m, sekolah.SaldoBos - bku.NilaiNettoTransfer);
         else
-            sekolah.SaldoBop -= bku.NilaiNettoTransfer;
+            sekolah.SaldoBop = Math.Max(0m, sekolah.SaldoBop - bku.NilaiNettoTransfer);
 
         var sisaSaldo = bku.SumberDana == SumberDanaTypes.Bos ? sekolah.SaldoBos : sekolah.SaldoBop;
-        var jurnal = $"JRN-DKI-{DateTime.UtcNow:yyyyMMddHHmmss}";
-        var now = DateTime.UtcNow;
+        var jurnal = DummyIntegrationFactory.GenerateJurnal("DKI", now);
 
         bku.StatusBku = StatusBkuFlow.LunasTransfer;
         bku.NoJurnalBank = jurnal;
@@ -64,6 +84,20 @@ public class SpjTransferController : ControllerBase
         bku.StatusTransferBank = "00";
         bku.CatatanVerifikasi = $"Transfer CMS Bank DKI Berhasil (Bit39=00). Jurnal: {jurnal}";
         bku.UpdatedAt = now;
+
+        // Sync status of linked Penerimaan Pajak BKU to LunasTransfer (status 5)
+        var childPenerimaan = await _db.BkuTransactions
+            .Where(c => c.ParentBkuId == bku.Id && c.JenisPembayaran == JenisPembayaranBku.Penerimaan)
+            .ToListAsync();
+        foreach (var child in childPenerimaan)
+        {
+            child.StatusBku = StatusBkuFlow.LunasTransfer;
+            child.NoJurnalBank = jurnal;
+            child.TanggalTransferBank = now;
+            child.StatusTransferBank = "00";
+            child.UpdatedAt = now;
+            child.CatatanVerifikasi = $"Status Lunas mengikuti transfer Bank SPJ induk {bku.NomorBku}.";
+        }
 
         _db.BankMutations.Add(new BankMutation
         {

@@ -5,6 +5,7 @@ using SiapBos.Shared.Constants;
 using SiapBos.Shared.Data;
 using SiapBos.Shared.DTOs;
 using SiapBos.Shared.Entities;
+using SiapBos.Shared.Services;
 
 namespace SiapBos.Integration.Controllers;
 
@@ -39,6 +40,16 @@ public class MutasiNpwpPajakController : ControllerBase
         var ordered = query.OrderByDescending(m => m.TanggalTransaksi).ThenByDescending(m => m.Id);
         var result = req.Limit12 ? await ordered.Take(12).ToListAsync() : await ordered.ToListAsync();
 
+        if (result.Count == 0)
+        {
+            var sekolah = req.SekolahId.HasValue ? await _db.Sekolahs.FindAsync(req.SekolahId.Value) : null;
+            var sd = string.IsNullOrWhiteSpace(req.SumberDana) ? SumberDanaTypes.Bos : req.SumberDana;
+            var noRek = string.IsNullOrWhiteSpace(req.NomorRekening)
+                ? (sd == SumberDanaTypes.Bop ? sekolah?.NoRekBop : sekolah?.NoRekBos) ?? "1010010012345"
+                : req.NomorRekening;
+            result = DummyIntegrationFactory.BuildDummyMutations(req.SekolahId ?? 1, sd, noRek);
+        }
+
         return Ok(ApiResponse<List<BankMutation>>.Ok(result));
     }
 
@@ -48,55 +59,52 @@ public class MutasiNpwpPajakController : ControllerBase
     public async Task<ActionResult<ApiResponse<NpwpInquiryResponse>>> InquiryNpwp([FromQuery] string? nomorNpwp, [FromBody] NpwpRequest? body)
     {
         var raw = (nomorNpwp ?? body?.NomorNpwp ?? string.Empty).Trim();
-        var digits = new string(raw.Where(char.IsDigit).ToArray());
-
-        if (digits.Length < 15 || digits.StartsWith("999"))
-        {
-            var fail = new NpwpInquiryResponse
-            {
-                ResponseCode = "14",
-                ResponseMessage = "NPWP tidak valid atau tidak terdaftar pada DJP/CTAS (minimal 15 digit).",
-                NomorNpwp = raw,
-                StatusPkp = "TIDAK TERDAFTAR"
-            };
-            await LogAsync("DJP_MPN", "/api/npwp/byNomorNpwp", new { nomorNpwp = raw }, fail, "14", false);
-            return Ok(ApiResponse<NpwpInquiryResponse>.Ok(fail, fail.ResponseMessage));
-        }
-
-        var wpName = raw switch
-        {
-            "01.345.678.9-022.000" => "CV. GRAHA PUSTAKA NUSANTARA",
-            "02.555.666.7-033.000" => "PT. SEJUK PRIMA TEKNIK",
-            "03.777.888.9-012.000" => "CV. RASA NUSANTARA CATERING",
-            "01.001.629.3-051.000" => "PT PLN (PERSERO)",
-            _ => $"WAJIB PAJAK TERVERIFIKASI DJP (#{digits[^4..]})"
-        };
-
-        var resp = new NpwpInquiryResponse
-        {
-            ResponseCode = "00",
-            ResponseMessage = "NPWP Aktif & Valid di Direktorat Jenderal Pajak (MPN G3)",
-            NomorNpwp = raw,
-            NamaWajibPajak = wpName,
-            Alamat = "DKI Jakarta",
-            StatusPkp = "PKP AKTIF",
-            KppTerdaftar = "KPP Pratama Jakarta Pusat"
-        };
+        var resp = DummyIntegrationFactory.BuildNpwp(raw);
         await LogAsync("DJP_MPN", "/api/npwp/byNomorNpwp", new { nomorNpwp = raw }, resp, "00", true);
         return Ok(ApiResponse<NpwpInquiryResponse>.Ok(resp));
+    }
+
+    [HttpPost("/api/pajak/inquiry")]
+    public async Task<ActionResult<ApiResponse<object>>> InquiryPajak([FromBody] PajakInquiryRequest req)
+    {
+        var code = (req.KodeTrx ?? "P5").Trim().ToUpperInvariant();
+        var dbTax = await _db.TaxMasters.FirstOrDefaultAsync(t => t.KodeTrxPajak == code);
+        var resp = DummyIntegrationFactory.BuildTaxInquiry(
+            code,
+            req.MasaPajak,
+            req.TahunPajak,
+            req.BrutoSpj,
+            req.DasarPengenaanPajak,
+            req.TarifPersen,
+            dbTax,
+            req.Npwp,
+            req.NamaWajibPajak);
+
+        await LogAsync("DJP_MPN", "/api/pajak/inquiry", req, resp, "00", true);
+        return Ok(ApiResponse<object>.Ok(resp, "Inquiry pajak berhasil."));
     }
 
     [HttpPost("/api/spj-transfer-pajak/{taxId:int}/create")]
     public async Task<ActionResult<ApiResponse<BkuTaxItem>>> CreateBilling(int taxId)
     {
         var tax = await _db.BkuTaxItems.Include(t => t.BkuTransaction).FirstOrDefaultAsync(t => t.Id == taxId);
-        if (tax == null) return NotFound(ApiResponse<BkuTaxItem>.Fail("Item pajak tidak ditemukan."));
+        var now = DateTime.UtcNow;
+
+        if (tax == null)
+        {
+            var dummyTax = DummyIntegrationFactory.BuildDummyTaxItem(taxId, now);
+            await LogAsync("DJP_MPN", $"/api/spj-transfer-pajak/{taxId}/create", new { taxId }, new { dummyTax.KodeBilling }, "00", true);
+            return Ok(ApiResponse<BkuTaxItem>.Ok(dummyTax, $"Kode Billing {dummyTax.KodeBilling} berhasil diterbitkan DJP."));
+        }
 
         if (tax.StatusPajak == StatusPajakFlow.LunasNtpn)
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Pajak ini sudah lunas dibayar."));
+        {
+            if (string.IsNullOrWhiteSpace(tax.KodeBilling))
+                tax.KodeBilling = DummyIntegrationFactory.GenerateKodeBilling(now);
+            return Ok(ApiResponse<BkuTaxItem>.Ok(tax, $"Pajak sudah lunas (NTPN: {tax.Ntpn})."));
+        }
 
-        var now = DateTime.UtcNow;
-        tax.KodeBilling = $"8{now:yyyyMMdd}{Random.Shared.Next(100000, 999999)}";
+        tax.KodeBilling = DummyIntegrationFactory.GenerateKodeBilling(now);
         tax.BillingCreatedAt = now;
         tax.BillingExpiredAt = now.AddDays(30);
         tax.StatusPajak = StatusPajakFlow.BillingAktif;
@@ -110,9 +118,11 @@ public class MutasiNpwpPajakController : ControllerBase
     public async Task<ActionResult<ApiResponse<BkuTaxItem>>> ResetBilling(int taxId)
     {
         var tax = await _db.BkuTaxItems.FindAsync(taxId);
-        if (tax == null) return NotFound(ApiResponse<BkuTaxItem>.Fail("Item pajak tidak ditemukan."));
+        if (tax == null)
+            return Ok(ApiResponse<BkuTaxItem>.Ok(new BkuTaxItem { Id = taxId, StatusPajak = StatusPajakFlow.BelumBilling }, "Kode Billing berhasil direset."));
+
         if (tax.StatusPajak == StatusPajakFlow.LunasNtpn)
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Pajak yang sudah lunas tidak dapat direset."));
+            return Ok(ApiResponse<BkuTaxItem>.Ok(tax, $"Pajak sudah lunas (NTPN: {tax.Ntpn})."));
 
         tax.KodeBilling = null;
         tax.BillingCreatedAt = null;
@@ -126,9 +136,24 @@ public class MutasiNpwpPajakController : ControllerBase
     public async Task<ActionResult<ApiResponse<BkuTaxItem>>> InquiryBilling(int taxId)
     {
         var tax = await _db.BkuTaxItems.FindAsync(taxId);
-        if (tax == null) return NotFound(ApiResponse<BkuTaxItem>.Fail("Item pajak tidak ditemukan."));
+        var now = DateTime.UtcNow;
+
+        if (tax == null)
+        {
+            var dummyTax = DummyIntegrationFactory.BuildDummyTaxItem(taxId, now);
+            await LogAsync("DJP_MPN", $"/api/spj-transfer-pajak/{taxId}/inquiry", new { taxId }, new { status = "BILLING_VALID", dummyTax.KodeBilling }, "00", true);
+            return Ok(ApiResponse<BkuTaxItem>.Ok(dummyTax, $"Inquiry Kode Billing {dummyTax.KodeBilling}: Tagihan Aktif Rp {dummyTax.NilaiPajak:N0}."));
+        }
+
         if (string.IsNullOrWhiteSpace(tax.KodeBilling))
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Kode Billing belum dibuat."));
+        {
+            tax.KodeBilling = DummyIntegrationFactory.GenerateKodeBilling(now);
+            tax.BillingCreatedAt ??= now;
+            tax.BillingExpiredAt ??= now.AddDays(30);
+            if (tax.StatusPajak == StatusPajakFlow.BelumBilling)
+                tax.StatusPajak = StatusPajakFlow.BillingAktif;
+            await _db.SaveChangesAsync();
+        }
 
         await LogAsync("DJP_MPN", $"/api/spj-transfer-pajak/{taxId}/inquiry", new { tax.KodeBilling }, new { status = "BILLING_VALID", tax.NilaiPajak }, "00", true);
         return Ok(ApiResponse<BkuTaxItem>.Ok(tax, $"Inquiry Kode Billing {tax.KodeBilling}: Tagihan Aktif Rp {tax.NilaiPajak:N0}."));
@@ -142,38 +167,54 @@ public class MutasiNpwpPajakController : ControllerBase
             .ThenInclude(b => b!.Sekolah)
             .FirstOrDefaultAsync(t => t.Id == taxId);
 
+        var now = DateTime.UtcNow;
         if (tax == null || tax.BkuTransaction?.Sekolah == null)
-            return NotFound(ApiResponse<BkuTaxItem>.Fail("Data pajak atau BKU tidak ditemukan."));
+        {
+            var dummyTax = DummyIntegrationFactory.BuildDummyTaxItem(taxId, now, paid: true);
+            await LogAsync("DJP_MPN", $"/api/spj-transfer-pajak/{taxId}/payment", new { taxId }, new { ntpn = dummyTax.Ntpn, ntb = dummyTax.Ntb, status = "LUNAS" }, "00", true);
+            return Ok(ApiResponse<BkuTaxItem>.Ok(dummyTax, $"Pembayaran Pajak MPN Berhasil! NTPN: {dummyTax.Ntpn}"));
+        }
 
         if (tax.StatusPajak == StatusPajakFlow.LunasNtpn)
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Pajak sudah lunas dibayar sebelumnya."));
+        {
+            if (string.IsNullOrWhiteSpace(tax.KodeBilling))
+                tax.KodeBilling = DummyIntegrationFactory.GenerateKodeBilling(now);
+            if (string.IsNullOrWhiteSpace(tax.Ntpn))
+                tax.Ntpn = DummyIntegrationFactory.GenerateNtpn(now);
+            if (string.IsNullOrWhiteSpace(tax.Ntb))
+                tax.Ntb = DummyIntegrationFactory.GenerateNtb();
+            return Ok(ApiResponse<BkuTaxItem>.Ok(tax, $"Pembayaran Pajak MPN sudah lunas (NTPN: {tax.Ntpn})."));
+        }
 
         if (string.IsNullOrWhiteSpace(tax.KodeBilling))
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Silakan buat Kode Billing DJP terlebih dahulu."));
+        {
+            tax.KodeBilling = DummyIntegrationFactory.GenerateKodeBilling(now);
+            tax.BillingCreatedAt ??= now;
+            tax.BillingExpiredAt ??= now.AddDays(30);
+        }
 
         var bku = tax.BkuTransaction;
-        if (bku.StatusBku < StatusBkuFlow.DisetujuiPa)
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail("Transaksi BKU induk harus sudah Disetujui PA sebelum membayar pajak."));
-
         var sekolah = bku.Sekolah;
-        var saldo = bku.SumberDana == SumberDanaTypes.Bos ? sekolah.SaldoBos : sekolah.SaldoBop;
-        if (saldo < tax.NilaiPajak)
-            return BadRequest(ApiResponse<BkuTaxItem>.Fail($"Saldo rekening {bku.SumberDana} tidak cukup untuk membayar pajak."));
-
         if (bku.SumberDana == SumberDanaTypes.Bos)
-            sekolah.SaldoBos -= tax.NilaiPajak;
+            sekolah.SaldoBos = Math.Max(0m, sekolah.SaldoBos - tax.NilaiPajak);
         else
-            sekolah.SaldoBop -= tax.NilaiPajak;
+            sekolah.SaldoBop = Math.Max(0m, sekolah.SaldoBop - tax.NilaiPajak);
 
         var sisaSaldo = bku.SumberDana == SumberDanaTypes.Bos ? sekolah.SaldoBos : sekolah.SaldoBop;
-        var now = DateTime.UtcNow;
-        var ntpn = $"DJP{now:yyMMdd}DKI{Random.Shared.Next(1000, 9999)}X";
-        var ntb = $"000{Random.Shared.Next(100000000, 999999999)}";
+        var ntpn = DummyIntegrationFactory.GenerateNtpn(now);
+        var ntb = DummyIntegrationFactory.GenerateNtb();
 
         tax.Ntpn = ntpn;
         tax.Ntb = ntb;
         tax.TanggalLunasPajak = now;
         tax.StatusPajak = StatusPajakFlow.LunasNtpn;
+
+        bku.StatusBku = StatusBkuFlow.LunasTransfer;
+        bku.NoJurnalBank = ntb;
+        bku.TanggalTransferBank = now;
+        bku.StatusTransferBank = "00";
+        bku.UpdatedAt = now;
+        bku.CatatanVerifikasi = $"Lunas Setor Pajak MPN (NTPN: {ntpn}, NTB: {ntb})";
 
         _db.BankMutations.Add(new BankMutation
         {
@@ -224,4 +265,16 @@ public class MutasiRequest
 public class NpwpRequest
 {
     public string? NomorNpwp { get; set; }
+}
+
+public class PajakInquiryRequest
+{
+    public string? KodeTrx { get; set; }
+    public string? MasaPajak { get; set; }
+    public int TahunPajak { get; set; } = DateTime.UtcNow.Year;
+    public decimal BrutoSpj { get; set; }
+    public decimal DasarPengenaanPajak { get; set; }
+    public decimal? TarifPersen { get; set; }
+    public string? Npwp { get; set; }
+    public string? NamaWajibPajak { get; set; }
 }
