@@ -8,6 +8,7 @@ using SiapBos.Shared.Data;
 using SiapBos.Shared.DTOs;
 using SiapBos.Shared.Entities;
 using SiapBos.Shared.Security;
+using SiapBos.Shared.Services;
 
 namespace SiapBos.Auth.Controllers;
 
@@ -506,12 +507,25 @@ public class PenggunaController : ControllerBase
         if (!await HasUmAccessAsync())
             return StatusCode(403, ApiResponse<SimpegPegawaiResponse>.Fail("Akses ditolak."));
 
-        var client = _httpClientFactory.CreateClient("IntegrationClient");
-        var resp = await client.GetAsync($"/api/simpeg/getPegawai/byNrk?nrk={Uri.EscapeDataString(nrk)}");
-        var result = await resp.Content.ReadFromJsonAsync<ApiResponse<SimpegPegawaiResponse>>();
-        if (!resp.IsSuccessStatusCode || result == null)
-            return BadRequest(ApiResponse<SimpegPegawaiResponse>.Fail("Gagal menghubungi siapbos-integration SIMPEG."));
-        return Ok(result);
+        try
+        {
+            var client = _httpClientFactory.CreateClient("IntegrationClient");
+            var resp = await client.GetAsync($"/api/simpeg/getPegawai/byNrk?nrk={Uri.EscapeDataString(nrk)}");
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<ApiResponse<SimpegPegawaiResponse>>();
+                if (result?.Success == true && result.Data != null)
+                    return Ok(result);
+            }
+        }
+        catch
+        {
+            // Fallback to local dummy SIMPEG profile if integration service is unavailable
+        }
+
+        var existingUser = await _db.AppUsers.Include(u => u.Sekolah).FirstOrDefaultAsync(u => u.Nrk == nrk.Trim());
+        var dummy = DummyIntegrationFactory.BuildSimpegPegawai(nrk, existingUser);
+        return Ok(ApiResponse<SimpegPegawaiResponse>.Ok(dummy));
     }
 
     // =========================================================================
@@ -615,11 +629,11 @@ public class PenggunaController : ControllerBase
         if (!await HasUmAccessAsync())
             return StatusCode(403, ApiResponse<object>.Fail("Akses ditolak."));
 
-        var allApps = await _db.AppModules.Where(m => m.IsActive).OrderBy(m => m.SortOrder).ToListAsync();
+        var allApps = await _db.AppModules.OrderBy(m => m.SortOrder).ToListAsync();
         var assignedIds = await _db.AppOtoritasAplikasis.Where(oa => oa.RoleId == id).Select(oa => oa.ModuleId).ToListAsync();
 
         var assigned = allApps.Where(m => assignedIds.Contains(m.Id)).ToList();
-        var available = allApps.Where(m => !assignedIds.Contains(m.Id)).ToList();
+        var available = allApps.Where(m => m.IsActive && !assignedIds.Contains(m.Id)).ToList();
         return Ok(ApiResponse<object>.Ok(new { assigned, available }));
     }
 
@@ -633,9 +647,9 @@ public class PenggunaController : ControllerBase
         if (role == null) return NotFound(ApiResponse<object>.Fail("Otoritas tidak ditemukan."));
 
         var validApps = await _db.AppModules.Where(m => req.ModuleIds.Contains(m.Id)).ToListAsync();
-        var validKodeApps = validApps.Select(a => a.KodeAplikasi).ToList();
 
         var existing = await _db.AppOtoritasAplikasis.Where(oa => oa.RoleId == id).ToListAsync();
+        var existingModuleIds = existing.Select(oa => oa.ModuleId).ToHashSet();
         _db.AppOtoritasAplikasis.RemoveRange(existing);
 
         foreach (var app in validApps)
@@ -643,12 +657,36 @@ public class PenggunaController : ControllerBase
             _db.AppOtoritasAplikasis.Add(new AppOtoritasAplikasi { RoleId = id, ModuleId = app.Id, CreatedBy = CurrentActor });
         }
 
-        // Bersihkan hak sub-menu milik aplikasi yang tidak lagi dimiliki otoritas
-        var orphanMenuIds = await _db.AppOtoritasMenus
-            .Include(om => om.Menu)
-            .Where(om => om.RoleId == id && om.Menu != null && !validKodeApps.Contains(om.Menu.KodeAplikasi))
-            .ToListAsync();
-        _db.AppOtoritasMenus.RemoveRange(orphanMenuIds);
+        // Pertahankan hak sub-menu yang sudah ada bila aplikasi dinonaktifkan sementara agar saat diaktifkan kembali tidak hilang.
+        // Jika aplikasi baru ditambahkan dan role belum punya sub-menu untuk modul tersebut, beri default sub-menu aktifnya.
+        var addedApps = validApps.Where(a => !existingModuleIds.Contains(a.Id)).ToList();
+        if (addedApps.Count > 0)
+        {
+            var addedCodes = addedApps.Select(a => a.KodeAplikasi).Distinct().ToList();
+            var existingRoleMenusByApp = await _db.AppOtoritasMenus
+                .Include(om => om.Menu)
+                .Where(om => om.RoleId == id && om.Menu != null && addedCodes.Contains(om.Menu.KodeAplikasi))
+                .Select(om => om.Menu!.KodeAplikasi)
+                .Distinct()
+                .ToListAsync();
+
+            var codesNeedingDefaultMenus = addedCodes
+                .Where(c => !existingRoleMenusByApp.Contains(c))
+                .ToList();
+
+            if (codesNeedingDefaultMenus.Count > 0)
+            {
+                var defaultMenuIds = await _db.AppMenus
+                    .Where(mn => mn.IsActive && codesNeedingDefaultMenus.Contains(mn.KodeAplikasi))
+                    .Select(mn => mn.Id)
+                    .ToListAsync();
+
+                foreach (var mid in defaultMenuIds)
+                {
+                    _db.AppOtoritasMenus.Add(new AppOtoritasMenu { RoleId = id, MenuId = mid, CreatedBy = CurrentActor });
+                }
+            }
+        }
 
         await _db.SaveChangesAsync();
         return Ok(ApiResponse<object>.Ok(validApps, $"Hak akses aplikasi untuk {role.RoleCode} berhasil disimpan."));

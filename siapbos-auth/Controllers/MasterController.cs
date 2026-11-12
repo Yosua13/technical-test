@@ -152,6 +152,8 @@ public class MasterController : ControllerBase
     [HttpGet("/api/master/periode")]
     public async Task<ActionResult<ApiResponse<List<MasterPeriode>>>> GetPeriodes([FromQuery] int tahun = 2026, [FromQuery] string? sumberDana = null)
     {
+        await DbSeeder.EnsureMasterPeriodesCompleteAsync(_db, tahun);
+
         var query = _db.MasterPeriodes.Where(p => p.TahunAnggaran == tahun);
         if (!string.IsNullOrWhiteSpace(sumberDana))
             query = query.Where(p => p.SumberDana == sumberDana);
