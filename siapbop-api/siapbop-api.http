@@ -1,0 +1,11 @@
+@siapbop_api_HostAddress = http://localhost:5160
+
+GET {{siapbop_api_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+
+GET {{siapbop_api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

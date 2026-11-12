@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="siapbop-api/siapbop-api.csproj" />
+  <Project Path="siapbos-api/siapbos-api.csproj" />
+  <Project Path="siapbos-auth/siapbos-auth.csproj" />
+  <Project Path="siapbos-integration/siapbos-integration.csproj" />
+  <Project Path="siapbos-report/siapbos-report.csproj" />
+  <Project Path="siapbos-shared/siapbos-shared.csproj" />
+  <Project Path="siapbos-uploader/siapbos-uploader.csproj" />
+</Solution>

@@ -1,0 +1,13 @@
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.csproj.AssemblyReference.cache
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.GeneratedMSBuildEditorConfig.editorconfig
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.AssemblyInfoInputs.cache
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.AssemblyInfo.cs
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.csproj.CoreCompileInputs.cache
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\bin\Debug\net11.0\siapbos-shared.deps.json
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\bin\Debug\net11.0\siapbos-shared.dll
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\bin\Debug\net11.0\siapbos-shared.pdb
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.dll
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\refint\siapbos-shared.dll
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-shared.pdb
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\ref\siapbos-shared.dll
+D:\project_yosua\siap-bos-tes-user\siapbos-shared\obj\Debug\net11.0\siapbos-.22E487A7.Up2Date

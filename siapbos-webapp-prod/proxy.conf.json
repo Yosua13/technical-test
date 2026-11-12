@@ -1,0 +1,52 @@
+{
+  "/auth-server": {
+    "target": "http://localhost:5001",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/auth-server": ""
+    }
+  },
+  "/api-bop": {
+    "target": "http://localhost:5003",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api": {
+    "target": "http://localhost:5002",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/integration-server": {
+    "target": "http://localhost:5004",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/integration-server": ""
+    }
+  },
+  "/report-server": {
+    "target": "http://localhost:5005",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/report-server": ""
+    }
+  },
+  "/uploader": {
+    "target": "http://localhost:5006",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/uploader": ""
+    }
+  },
+  "/file-uploader": {
+    "target": "http://localhost:5006",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/file-uploader": ""
+    }
+  }
+}
