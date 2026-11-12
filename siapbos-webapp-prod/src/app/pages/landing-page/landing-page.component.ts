@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, HostListener, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -11,9 +11,29 @@ export interface MainMenuGroup {
   nama: string;
   link: string;
   icon: string;
-  badge: string;
-  color: string;
   subMenus: { nama: string; link: string; icon: string }[];
+}
+
+export interface BeritaItem {
+  id: number;
+  kategori: string;
+  badgeColor: string;
+  bannerGradient: string;
+  bannerIcon: string;
+  tanggal: string;
+  judul: string;
+  ringkasan: string;
+  isiLengkap: string;
+}
+
+export interface PeraturanItem {
+  id: number;
+  judul: string;
+  deskripsi: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  kodeFile: string;
 }
 
 @Component({
@@ -24,160 +44,134 @@ export interface MainMenuGroup {
     :host {
       display: block;
       min-height: 100vh;
-      background-color: #FFFBF5;
-      color: #1e293b;
+      background-color: #f8fafc;
+      color: #1f2937;
       overflow-x: hidden;
     }
 
-    /* Top Creative Navbar */
+    /* Sticky Navbar (#FF9A00 palette preserved) */
     .landing-nav {
       position: sticky;
       top: 0;
       z-index: 1030;
-      background: rgba(255, 255, 255, 0.94);
-      backdrop-filter: blur(14px);
-      border-bottom: 2px solid rgba(255, 154, 0, 0.22);
-      box-shadow: 0 4px 20px rgba(255, 154, 0, 0.08);
+      background: #FF9A00;
+      transition: box-shadow 0.25s ease;
+    }
+    .landing-nav.scrolled {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
     }
 
-    .brand-logo-box {
-      width: 52px;
-      height: 52px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #FF9A00 0%, #FF6D00 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 6px 16px rgba(255, 154, 0, 0.38);
-      border: 2px solid #fff;
-      flex-shrink: 0;
-    }
-
-    .brand-logo-box img {
-      width: 38px;
-      height: 38px;
+    .brand-logo-img {
+      width: 44px;
+      height: 44px;
       object-fit: contain;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
     }
 
-    .nav-pill-link {
-      color: #334155;
-      font-weight: 600;
-      font-size: 0.88rem;
+    .nav-simple-link {
+      color: #ffffff;
+      font-weight: 500;
+      font-size: 0.94rem;
       padding: 0.45rem 0.9rem;
-      border-radius: 999px;
       text-decoration: none;
-      transition: all 0.2s ease;
+      background: transparent;
+      border: none;
       cursor: pointer;
+      transition: color 0.18s ease, opacity 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .nav-simple-link:hover {
+      color: #ffedd5;
     }
 
-    .nav-pill-link:hover, .nav-pill-link.active {
-      background: #FFF3E0;
-      color: #D97706;
+    .btn-cta-red {
+      background-color: #FF3800;
+      color: #ffffff !important;
+      border: none;
+      font-weight: 700;
+      transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .btn-cta-red:hover {
+      background-color: #e03000;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255, 56, 0, 0.34);
     }
 
-    /* Envato-Inspired Creative #FF9A00 Hero */
-    .hero-creative {
-      position: relative;
-      background: linear-gradient(135deg, #FF9A00 0%, #FF8000 55%, #FFB340 100%);
-      padding: 3.2rem 0 5.5rem;
-      overflow: hidden;
+    /* Mobile Drawer */
+    .mobile-drawer {
+      background: #E68900;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .mobile-nav-link {
+      display: block;
+      padding: 0.65rem 1rem;
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 500;
+      border-radius: 8px;
+    }
+    .mobile-nav-link:hover {
+      background: rgba(255, 255, 255, 0.15);
       color: #ffffff;
     }
 
-    .hero-orb-1 {
-      position: absolute;
-      width: 420px;
-      height: 420px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0) 70%);
-      top: -120px;
-      right: -80px;
-      pointer-events: none;
+    /* Hero Section (#FF9A00 palette preserved) */
+    .hero-creative {
+      position: relative;
+      background: linear-gradient(135deg, #FF9A00 0%, #FF8400 60%, #FFA726 100%);
+      padding: 3.75rem 0 7.5rem;
+      overflow: hidden;
+      color: #ffffff;
     }
-
-    .hero-orb-2 {
-      position: absolute;
-      width: 320px;
-      height: 320px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(255, 56, 0, 0.22) 0%, rgba(255, 56, 0, 0) 70%);
-      bottom: -80px;
-      left: 10%;
-      pointer-events: none;
-    }
-
-    .hero-logo-showcase {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.9rem;
-      background: rgba(255, 255, 255, 0.18);
-      backdrop-filter: blur(10px);
-      border: 2px solid rgba(255, 255, 255, 0.55);
-      border-radius: 20px;
-      padding: 0.55rem 1.15rem 0.55rem 0.65rem;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-    }
-
-    .hero-logo-crest {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #FF7700 0%, #FF3800 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid #ffffff;
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-    }
-
-    .hero-logo-crest img {
-      width: 48px;
-      height: 48px;
-      object-fit: contain;
-      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
+    @media (min-width: 992px) {
+      .hero-creative {
+        padding: 4.5rem 0 9rem;
+      }
     }
 
     .siap-acrostic {
       font-weight: 800;
-      font-size: clamp(2rem, 3.6vw, 3.1rem);
-      line-height: 1.12;
+      font-size: clamp(2.35rem, 4.2vw, 3.55rem);
+      line-height: 1.15;
       letter-spacing: -0.02em;
-      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
     }
-
     .siap-letter {
       color: #FF3800;
-      background: #ffffff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.32em;
-      height: 1.32em;
-      border-radius: 12px;
-      margin-right: 0.14em;
-      margin-bottom: 0.12em;
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.14);
       font-weight: 900;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    }
+    .hero-subtitle {
+      font-size: 1.08rem;
+      color: rgba(255, 255, 255, 0.94);
+      max-width: 520px;
+      line-height: 1.65;
+      font-weight: 400;
+    }
+    .btn-hero-glass {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      font-weight: 600;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+    .btn-hero-glass:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
     }
 
-    .hero-illustration-card {
-      position: relative;
-      background: rgba(255, 255, 255, 0.96);
-      border-radius: 28px;
-      padding: 1.5rem;
-      box-shadow: 0 24px 50px rgba(124, 45, 18, 0.24);
-      border: 3px solid rgba(255, 255, 255, 0.9);
-    }
-
-    .hero-stat-pill {
-      background: #ffffff;
-      color: #1e293b;
-      border-radius: 16px;
-      padding: 0.55rem 0.95rem;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-      border: 1px solid rgba(255, 154, 0, 0.3);
-      font-size: 0.8rem;
+    .hero-blob {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.14);
+      filter: blur(48px);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
     }
 
     .hero-wave-bottom {
@@ -187,68 +181,247 @@ export interface MainMenuGroup {
       width: 100%;
       line-height: 0;
       pointer-events: none;
+      z-index: 2;
     }
 
-    /* 5 Main Menus Cards */
-    .menu-section-wrap {
-      margin-top: -2.6rem;
+    /* Section Title Accent Underline */
+    .section-title {
+      font-weight: 800;
+      color: #111827;
       position: relative;
-      z-index: 10;
+      display: inline-block;
+      padding-bottom: 0.75rem;
+    }
+    .section-title::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 64px;
+      height: 4px;
+      border-radius: 999px;
+      background: #FF9A00;
+    }
+    .section-title-dark {
+      color: #ffffff;
     }
 
+    /* Berita Cards */
+    .news-card {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .news-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.09);
+    }
+    .news-thumb {
+      height: 180px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .news-thumb i.watermark-icon {
+      font-size: 4.5rem;
+      color: rgba(255, 255, 255, 0.28);
+      transition: transform 0.4s ease;
+    }
+    .news-card:hover .news-thumb i.watermark-icon {
+      transform: scale(1.12);
+    }
+    .news-badge {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    }
+
+    /* Peraturan Items */
+    .peraturan-box {
+      background: #f8fafc;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      padding: 1.5rem;
+    }
+    @media (min-width: 768px) {
+      .peraturan-box {
+        padding: 2rem;
+      }
+    }
+    .peraturan-item {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 14px;
+      padding: 1.15rem 1.25rem;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .peraturan-item:hover {
+      border-color: #FF9A00;
+      transform: translateY(-2px);
+    }
+    .peraturan-icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      flex-shrink: 0;
+    }
+    .btn-unduh-pdf {
+      background: #f1f5f9;
+      color: #334155;
+      border: none;
+      font-weight: 600;
+      font-size: 0.86rem;
+      border-radius: 10px;
+      padding: 0.55rem 1rem;
+      transition: background-color 0.2s ease, color 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-unduh-pdf:hover {
+      background: #FF9A00;
+      color: #ffffff;
+    }
+
+    /* Sistem & Prosedur Dark Section */
+    .prosedur-section {
+      position: relative;
+      background: #111827;
+      color: #ffffff;
+      overflow: hidden;
+    }
+    .prosedur-glow-orange {
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: rgba(255, 154, 0, 0.16);
+      filter: blur(70px);
+      pointer-events: none;
+    }
+    .prosedur-glow-red {
+      position: absolute;
+      bottom: -80px;
+      left: -80px;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: rgba(255, 56, 0, 0.16);
+      filter: blur(70px);
+      pointer-events: none;
+    }
+    .prosedur-connector {
+      position: absolute;
+      top: 40px;
+      left: 12.5% !important;
+      width: 75% !important;
+      padding: 0 !important;
+      height: 2px;
+      background: #374151;
+      z-index: 0;
+    }
+    .step-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #1f2937;
+      border: 4px solid #374151;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      position: relative;
+      margin: 0 auto 1.25rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .step-circle-final {
+      background: #FF9A00;
+      border-color: #E68900;
+      color: #ffffff;
+      box-shadow: 0 10px 30px rgba(255, 154, 0, 0.35);
+    }
+    .step-number-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 3px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    /* Authenticated 5 Main Menus Cards */
     .main-menu-card {
       background: #ffffff;
-      border-radius: 20px;
-      padding: 1.25rem 1rem;
-      border: 2px solid rgba(255, 154, 0, 0.18);
-      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      border-radius: 18px;
+      padding: 1.2rem 1rem;
+      border: 1px solid rgba(255, 154, 0, 0.22);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
       cursor: pointer;
-      transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+      transition: all 0.22s ease;
       height: 100%;
       text-align: center;
     }
-
     .main-menu-card:hover {
-      transform: translateY(-5px);
+      transform: translateY(-4px);
       border-color: #FF9A00;
-      box-shadow: 0 16px 34px rgba(255, 154, 0, 0.2);
     }
-
     .main-menu-card.active {
       background: linear-gradient(135deg, #FF9A00 0%, #FF7A00 100%);
       color: #ffffff;
-      border-color: #ffffff;
-      box-shadow: 0 16px 34px rgba(255, 154, 0, 0.38);
-      transform: translateY(-5px);
+      border-color: #FF9A00;
+      box-shadow: 0 12px 28px rgba(255, 154, 0, 0.3);
+      transform: translateY(-4px);
     }
-
     .menu-icon-circle {
-      width: 54px;
-      height: 54px;
-      border-radius: 16px;
+      width: 50px;
+      height: 50px;
+      border-radius: 14px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
-      margin-bottom: 0.65rem;
+      font-size: 1.4rem;
+      margin-bottom: 0.55rem;
       background: #FFF3E0;
       color: #FF8000;
-      transition: all 0.2s ease;
     }
-
     .main-menu-card.active .menu-icon-circle {
-      background: rgba(255, 255, 255, 0.24);
+      background: rgba(255, 255, 255, 0.22);
       color: #ffffff;
     }
-
     .submenu-chip {
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      padding: 0.5rem 0.95rem;
-      border-radius: 12px;
+      padding: 0.48rem 0.9rem;
+      border-radius: 10px;
       background: #FFF9F0;
-      border: 1px solid rgba(255, 154, 0, 0.28);
+      border: 1px solid rgba(255, 154, 0, 0.25);
       color: #1e293b;
       font-weight: 600;
       font-size: 0.82rem;
@@ -256,390 +429,498 @@ export interface MainMenuGroup {
       cursor: pointer;
       transition: all 0.18s ease;
     }
-
     .submenu-chip:hover {
       background: #FF9A00;
       color: #ffffff;
       border-color: #FF9A00;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(255, 154, 0, 0.28);
     }
 
-    /* Dropdown Mega Menu in Navbar */
+    /* Dropdown Aplikasi in Navbar */
     .app-dropdown-panel {
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 6px);
       right: 0;
-      width: min(92vw, 760px);
+      width: min(92vw, 720px);
       background: #ffffff;
-      border-radius: 20px;
-      border: 2px solid rgba(255, 154, 0, 0.3);
-      box-shadow: 0 24px 55px rgba(15, 23, 42, 0.18);
-      padding: 1.15rem;
+      border-radius: 16px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.16);
+      padding: 1rem;
       z-index: 1060;
-      max-height: 78vh;
+      max-height: 75vh;
       overflow-y: auto;
+      color: #1e293b;
+    }
+
+    .footer-link {
+      color: #64748b;
+      text-decoration: none;
+      transition: color 0.18s ease;
+    }
+    .footer-link:hover {
+      color: #FF9A00;
     }
   `],
   template: `
-    <!-- TOP NAVBAR -->
-    <nav class="landing-nav py-2">
-      <div class="container d-flex align-items-center justify-content-between gap-2">
-        <!-- Clear SIAP BOS Logo + Brand -->
-        <a class="d-flex align-items-center gap-3 text-decoration-none" routerLink="/landingpage">
-          <div class="brand-logo-box">
-            <img src="assets/img/login/Logo.png" alt="Logo SIAP BOS">
-          </div>
-          <div>
-            <div class="fw-extrabold fs-5 text-dark lh-1" style="letter-spacing: -0.02em;">
-              SIAP <span style="color: #FF9A00;">BOSP &amp; BOP</span>
-            </div>
-            <small class="text-muted fw-semibold" style="font-size: 0.72rem;">Dinas Pendidikan Prov. DKI Jakarta</small>
-          </div>
-        </a>
+    <div (click)="showAppMenu.set(false)">
+      <!-- STICKY NAVBAR (#FF9A00 palette preserved, uniform menu styling) -->
+      <nav class="landing-nav py-2" [class.scrolled]="isScrolled()">
+        <div class="container">
+          <div class="d-flex justify-content-between align-items-center" style="min-height: 62px;">
+            <!-- Clear SIAP BOS Logo + Title -->
+            <a class="d-flex align-items-center gap-3 text-decoration-none text-white"
+               href="javascript:void(0)" (click)="scrollTo('beranda')">
+              <img src="assets/img/login/Logo.png" alt="Logo SIAP BOS" class="brand-logo-img">
+              <span class="fw-bold fs-5 tracking-tight">SIAP BOSP &amp; BOP</span>
+            </a>
 
-        <!-- Simple Nav Links + Aplikasi Dropdown -->
-        <div class="d-none d-lg-flex align-items-center gap-1">
-          <a class="nav-pill-link" [class.active]="infoTab() === 'menu'" (click)="scrollToSection('menu-section')">5 Menu Utama</a>
-          <a class="nav-pill-link" [class.active]="infoTab() === 'berita'" (click)="selectInfoTab('berita')">Berita</a>
-          <a class="nav-pill-link" [class.active]="infoTab() === 'peraturan'" (click)="selectInfoTab('peraturan')">Peraturan</a>
-          <a class="nav-pill-link" [class.active]="infoTab() === 'prosedur'" (click)="selectInfoTab('prosedur')">Prosedur</a>
+            <!-- Desktop Menu Links -->
+            <div class="d-none d-lg-flex align-items-center gap-2">
+              <a class="nav-simple-link" href="javascript:void(0)" (click)="scrollTo('beranda')">Home</a>
+              <a class="nav-simple-link" href="javascript:void(0)" (click)="scrollTo('berita')">Berita</a>
+              <a class="nav-simple-link" href="javascript:void(0)" (click)="scrollTo('peraturan')">Peraturan</a>
+              <a class="nav-simple-link" href="javascript:void(0)" (click)="scrollTo('prosedur')">Sistem dan Prosedur</a>
 
-          <!-- Dropdown Aplikasi (5 Menu Utama + Sub Menu) -->
-          <div class="position-relative">
-            <button class="btn btn-sm rounded-pill px-3 fw-bold"
-                    style="background: #FFF3E0; color: #D97706; border: 1px solid rgba(255,154,0,0.4);"
-                    (click)="showAppMenu.set(!showAppMenu())">
-              <i class="bi bi-grid-3x3-gap-fill me-1"></i>Aplikasi (5 Menu)
-              <i class="bi bi-chevron-down ms-1 small"></i>
-            </button>
+              <!-- Aplikasi & Ganti Password ONLY visible after login -->
+              @if (auth.isLoggedIn()) {
+                <div class="position-relative" (click)="$event.stopPropagation()">
+                  <button type="button" class="nav-simple-link" (click)="showAppMenu.set(!showAppMenu())">
+                    <span>Aplikasi</span>
+                    <i class="bi bi-chevron-down small" style="font-size: 0.72rem;"></i>
+                  </button>
 
-            @if (showAppMenu()) {
-              <div class="app-dropdown-panel animate-page">
-                <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
-                  <span class="fw-bold text-dark small"><i class="bi bi-layers-fill text-warning me-1"></i>5 Menu Utama &amp; Sub-Menu SIAP BOS</span>
-                  <button class="btn-close btn-sm" (click)="showAppMenu.set(false)"></button>
-                </div>
-                <div class="row g-2">
-                  @for (grp of mainMenus; track grp.kode) {
-                    <div class="col-md-4">
-                      <div class="p-2 rounded-3 h-100" style="background: #FFFBF5; border: 1px solid rgba(255,154,0,0.2);">
-                        <div class="fw-bold small mb-2 d-flex align-items-center justify-content-between" style="color: #D97706;">
-                          <span><i class="bi {{ grp.icon }} me-1"></i>{{ grp.nama }}</span>
-                          <span class="badge rounded-pill text-bg-warning text-dark">{{ grp.subMenus.length }}</span>
-                        </div>
-                        <div class="d-flex flex-column gap-1" style="max-height: 170px; overflow-y: auto;">
-                          @for (sub of grp.subMenus; track sub.link) {
-                            <a class="text-decoration-none small px-2 py-1 rounded-2 text-dark hover-orange"
-                               style="font-size: 0.76rem; cursor: pointer;"
-                               (click)="openSubMenu(grp, sub); showAppMenu.set(false)">
-                              <i class="bi {{ sub.icon }} text-warning me-1"></i>{{ sub.nama }}
-                            </a>
-                          }
-                        </div>
+                  @if (showAppMenu()) {
+                    <div class="app-dropdown-panel animate-page">
+                      <div class="row g-2">
+                        @for (grp of mainMenus; track grp.kode) {
+                          <div class="col-md-4">
+                            <div class="p-2 rounded-3 h-100" style="background: #FFFBF5;">
+                              <div class="fw-bold small mb-2" style="color: #FF8000;">
+                                <i class="bi {{ grp.icon }} me-1"></i>{{ grp.nama }}
+                              </div>
+                              <div class="d-flex flex-column gap-1" style="max-height: 170px; overflow-y: auto;">
+                                @for (sub of grp.subMenus; track sub.link) {
+                                  <a class="text-decoration-none small px-2 py-1 rounded-2 text-dark"
+                                     style="font-size: 0.78rem; cursor: pointer;"
+                                     (click)="openSubMenu(grp, sub); showAppMenu.set(false)">
+                                    {{ sub.nama }}
+                                  </a>
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        }
                       </div>
                     </div>
                   }
                 </div>
-              </div>
-            }
-          </div>
-        </div>
 
-        <!-- Right CTA: Login / Workspace / Logout -->
-        <div class="d-flex align-items-center gap-2">
-          @if (auth.isLoggedIn()) {
-            <span class="badge rounded-pill d-none d-md-inline-flex align-items-center gap-1 px-3 py-2"
-                  style="background: #FFF3E0; color: #9A3412; border: 1px solid rgba(255,154,0,0.35);">
-              <i class="bi bi-person-check-fill text-warning"></i>
-              {{ auth.tahunAnggaran() }} | {{ auth.currentUser()?.namaLengkap }}
-            </span>
-            <a routerLink="/bos-negeri/dashboard" class="btn btn-sm btn-siap rounded-pill px-3 py-2">
-              <i class="bi bi-grid-1x2-fill me-1"></i>Workspace
-            </a>
-            <button class="btn btn-sm btn-navy rounded-pill px-3 py-2" (click)="auth.logout()">
-              <i class="bi bi-box-arrow-right me-1"></i>Log Out
-            </button>
-          } @else {
-            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2 d-none d-sm-inline-block" (click)="showPasswordModal.set(true)">
-              <i class="bi bi-key me-1"></i>Ubah Sandi
-            </button>
-            <a routerLink="/login" class="btn btn-sm btn-siap rounded-pill px-4 py-2 shadow-sm">
-              <i class="bi bi-box-arrow-in-right me-1"></i>Login
-            </a>
-          }
-        </div>
-      </div>
-    </nav>
-
-    <!-- CREATIVE #FF9A00 HERO SECTION (SIMPLE, VISUAL, CLEAR LOGO) -->
-    <section class="hero-creative">
-      <div class="hero-orb-1"></div>
-      <div class="hero-orb-2"></div>
-
-      <div class="container position-relative" style="z-index: 2;">
-        <div class="row align-items-center g-4">
-          <!-- Left Column: Clear SIAP BOS Logo + S-I-A-P Acrostic + Simple CTA -->
-          <div class="col-lg-6">
-            <div class="hero-logo-showcase mb-4 animate-page">
-              <div class="hero-logo-crest">
-                <img src="assets/img/login/Logo.png" alt="Logo Resmi SIAP BOS">
-              </div>
-              <div>
-                <div class="badge bg-white text-dark fw-bold rounded-pill mb-1 px-2 py-1" style="font-size: 0.7rem;">
-                  PORTAL RESMI DKI JAKARTA
-                </div>
-                <div class="fw-extrabold fs-5 text-white lh-1">SIAP BOSP &amp; BOP</div>
-                <small class="text-white-50" style="font-size: 0.74rem;">Auth · OAuth · SIAP Database Terintegrasi</small>
-              </div>
-            </div>
-
-            <div class="siap-acrostic mb-3">
-              <div><span class="siap-letter">S</span>istem</div>
-              <div><span class="siap-letter">I</span>nformasi</div>
-              <div><span class="siap-letter">A</span>kuntabilitas</div>
-              <div><span class="siap-letter">P</span>endidikan</div>
-            </div>
-
-            <p class="fs-6 text-white mb-4 fw-medium" style="max-width: 480px; opacity: 0.95;">
-              Kelola BKU BOSP &amp; BOP Negeri secara ringkas, transparan, dan terintegrasi langsung dengan Bank DKI, SIPKD &amp; Pajak MPN.
-            </p>
-
-            <div class="d-flex flex-wrap gap-2">
-              @if (auth.isLoggedIn()) {
-                <a routerLink="/bos-negeri/dashboard" class="btn btn-light btn-lg rounded-pill px-4 fw-bold shadow" style="color: #D97706;">
-                  <i class="bi bi-rocket-takeoff-fill me-2"></i>Buka Dashboard BKU
-                </a>
-                <button class="btn btn-navy btn-lg rounded-pill px-4 fw-bold shadow" (click)="auth.logout()">
-                  <i class="bi bi-power me-1"></i>Log Out
-                </button>
-              } @else {
-                <a routerLink="/login" class="btn btn-light btn-lg rounded-pill px-4 fw-bold shadow" style="color: #D97706;">
-                  <i class="bi bi-box-arrow-in-right me-2"></i>Login Aplikasi
-                </a>
-                <button class="btn btn-outline-light btn-lg rounded-pill px-4 fw-semibold" (click)="scrollToSection('menu-section')">
-                  <i class="bi bi-grid-fill me-1"></i>Lihat 5 Menu Utama
+                <button type="button" class="nav-simple-link" (click)="showPasswordModal.set(true)">
+                  Ganti Password
                 </button>
               }
             </div>
-          </div>
 
-          <!-- Right Column: Official Illustration + Compact KPI Pills -->
-          <div class="col-lg-6">
-            <div class="hero-illustration-card animate-float">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="d-flex align-items-center gap-2">
-                  <span class="siap-logo-emblem p-1" style="border-radius: 10px;">
-                    <img src="assets/img/login/Logo.png" alt="SIAP Logo" width="28" height="28">
-                  </span>
-                  <span class="fw-bold text-dark small">SIAP BOSP &amp; BOP · Tahun 2025 / 2026</span>
-                </div>
-                <span class="badge rounded-pill" style="background: #FFF3E0; color: #D97706;">
-                  <span class="pulse-dot me-1"></span>Online
-                </span>
-              </div>
-
-              <div class="text-center py-2">
-                <img src="assets/img/login/SIAP BOS_login_ilustrasi.png"
-                     alt="Ilustrasi SIAP BOS"
-                     class="img-fluid rounded-4"
-                     style="max-height: 290px; object-fit: contain;">
-              </div>
-
-              <div class="row g-2 mt-1">
-                <div class="col-4">
-                  <div class="hero-stat-pill text-center">
-                    <div class="fw-extrabold fs-6" style="color: #FF8000;">{{ summary().jumlahSekolah }}</div>
-                    <div class="text-muted" style="font-size: 0.7rem;">Sekolah Negeri</div>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <div class="hero-stat-pill text-center">
-                    <div class="fw-extrabold fs-6 text-success">{{ summary().persenSerapan }}%</div>
-                    <div class="text-muted" style="font-size: 0.7rem;">Serapan BKU</div>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <div class="hero-stat-pill text-center">
-                    <div class="fw-extrabold fs-6 text-primary">5 Modul</div>
-                    <div class="text-muted" style="font-size: 0.7rem;">70+ Sub-Menu</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Wave Divider -->
-      <div class="hero-wave-bottom">
-        <svg viewBox="0 0 1440 90" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width: 100%; height: 65px;">
-          <path d="M0 36C240 90 480 90 720 48C960 6 1200 6 1440 48V90H0V36Z" fill="#FFFBF5"/>
-        </svg>
-      </div>
-    </section>
-
-    <!-- 5 MAIN MENUS & INTERACTIVE SUB-MENUS -->
-    <section id="menu-section" class="menu-section-wrap pb-5">
-      <div class="container">
-        <!-- 5 Main Menu Cards -->
-        <div class="row g-3 justify-content-center mb-4">
-          @for (grp of mainMenus; track grp.kode) {
-            <div class="col-6 col-md-4 col-lg">
-              <div class="main-menu-card"
-                   [class.active]="selectedMenu().kode === grp.kode"
-                   (click)="selectedMenu.set(grp)">
-                <div class="menu-icon-circle">
-                  <i class="bi {{ grp.icon }}"></i>
-                </div>
-                <h6 class="fw-bold mb-1">{{ grp.nama }}</h6>
-                <span class="badge rounded-pill"
-                      [ngClass]="selectedMenu().kode === grp.kode ? 'bg-white text-dark' : 'text-bg-warning text-dark'">
-                  {{ grp.subMenus.length }} Sub-Menu
-                </span>
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Active Main Menu Sub-Menu Chips Box -->
-        <div class="siap-card p-4 animate-page" style="border: 2px solid rgba(255, 154, 0, 0.28);">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+            <!-- Right Login / Log Out Button & Mobile Toggle -->
             <div class="d-flex align-items-center gap-2">
-              <span class="siap-logo-emblem p-2" style="border-radius: 12px;">
-                <i class="bi {{ selectedMenu().icon }} text-white fs-5"></i>
-              </span>
-              <div>
-                <h5 class="fw-bold mb-0">{{ selectedMenu().nama }}</h5>
-                <small class="text-muted">Klik sub-menu di bawah untuk langsung membuka halaman modul</small>
-              </div>
-            </div>
-            <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="openMainMenu(selectedMenu())">
-              <i class="bi bi-box-arrow-up-right me-1"></i>Buka {{ selectedMenu().nama }}
-            </button>
-          </div>
+              @if (!auth.isLoggedIn()) {
+                <a routerLink="/login"
+                   class="d-none d-lg-inline-flex btn btn-cta-red rounded-pill px-4 py-2 align-items-center gap-2 shadow-sm">
+                  <span>Login</span>
+                  <i class="bi bi-box-arrow-in-right"></i>
+                </a>
+              } @else {
+                <button type="button"
+                        class="d-none d-lg-inline-flex btn btn-cta-red rounded-pill px-4 py-2 align-items-center gap-2 shadow-sm"
+                        (click)="auth.logout()">
+                  <span>Log Out</span>
+                  <i class="bi bi-box-arrow-right"></i>
+                </button>
+              }
 
-          <div class="d-flex flex-wrap gap-2">
-            @for (sub of selectedMenu().subMenus; track sub.link) {
-              <a class="submenu-chip" (click)="openSubMenu(selectedMenu(), sub)">
-                <i class="bi {{ sub.icon }}" style="color: #FF8000;"></i>
-                <span>{{ sub.nama }}</span>
-              </a>
+              <button type="button"
+                      class="btn text-white d-lg-none p-1"
+                      aria-label="Toggle Menu"
+                      (click)="mobileMenuOpen.set(!mobileMenuOpen())">
+                <i class="bi bi-list fs-2"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile Menu Drawer -->
+        @if (mobileMenuOpen()) {
+          <div class="d-lg-none mobile-drawer px-3 py-3">
+            <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('beranda'); mobileMenuOpen.set(false)">Home</a>
+            <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('berita'); mobileMenuOpen.set(false)">Berita</a>
+            <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('peraturan'); mobileMenuOpen.set(false)">Peraturan</a>
+            <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('prosedur'); mobileMenuOpen.set(false)">Sistem dan Prosedur</a>
+            @if (auth.isLoggedIn()) {
+              <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('aplikasi-section'); mobileMenuOpen.set(false)">5 Menu Aplikasi</a>
+              <a class="mobile-nav-link" href="javascript:void(0)" (click)="showPasswordModal.set(true); mobileMenuOpen.set(false)">Ganti Password</a>
+              <button type="button" class="btn btn-cta-red w-100 rounded-pill mt-2" (click)="auth.logout(); mobileMenuOpen.set(false)">Log Out</button>
+            } @else {
+              <a routerLink="/login" class="btn btn-cta-red w-100 rounded-pill mt-2" (click)="mobileMenuOpen.set(false)">Login</a>
             }
           </div>
-        </div>
-      </div>
-    </section>
+        }
+      </nav>
 
-    <!-- SIMPLE TABBED INFO STRIP (BERITA / PERATURAN / PROSEDUR) -->
-    <section id="info-section" class="pb-5">
-      <div class="container">
-        <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
-          <button class="btn btn-sm rounded-pill px-4 fw-bold"
-                  [ngClass]="infoTab() === 'berita' ? 'btn-siap' : 'btn-outline-secondary'"
-                  (click)="infoTab.set('berita')">
-            <i class="bi bi-newspaper me-1"></i>Berita Terkini
-          </button>
-          <button class="btn btn-sm rounded-pill px-4 fw-bold"
-                  [ngClass]="infoTab() === 'peraturan' ? 'btn-siap' : 'btn-outline-secondary'"
-                  (click)="infoTab.set('peraturan')">
-            <i class="bi bi-journal-bookmark me-1"></i>Peraturan
-          </button>
-          <button class="btn btn-sm rounded-pill px-4 fw-bold"
-                  [ngClass]="infoTab() === 'prosedur' ? 'btn-siap' : 'btn-outline-secondary'"
-                  (click)="infoTab.set('prosedur')">
-            <i class="bi bi-diagram-3 me-1"></i>Alur Sistem
-          </button>
+      <!-- HERO SECTION -->
+      <header id="beranda" class="hero-creative">
+        <div class="container position-relative" style="z-index: 3;">
+          <div class="row align-items-center g-4">
+            <!-- Hero Text Content -->
+            <div class="col-lg-6 text-center text-lg-start">
+              <h1 class="siap-acrostic mb-3">
+                <span class="siap-letter">S</span>istem<br>
+                <span class="siap-letter">I</span>nformasi<br>
+                <span class="siap-letter">A</span>kuntabilitas<br>
+                <span class="siap-letter">P</span>endidikan
+              </h1>
+              <p class="hero-subtitle mb-4 mx-auto mx-lg-0">
+                Platform terpadu pengelolaan, pelaporan, dan pertanggungjawaban dana BOSP dan BOP Provinsi DKI Jakarta secara transparan dan akuntabel.
+              </p>
+              <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center justify-content-lg-start">
+                @if (!auth.isLoggedIn()) {
+                  <a routerLink="/login"
+                     class="btn btn-cta-red btn-lg rounded-pill px-4 py-3 d-inline-flex align-items-center justify-content-center gap-2 shadow">
+                    <span>Masuk Aplikasi</span>
+                    <i class="bi bi-arrow-right"></i>
+                  </a>
+                } @else {
+                  <a routerLink="/bos-negeri/dashboard"
+                     class="btn btn-cta-red btn-lg rounded-pill px-4 py-3 d-inline-flex align-items-center justify-content-center gap-2 shadow">
+                    <span>Masuk Aplikasi</span>
+                    <i class="bi bi-arrow-right"></i>
+                  </a>
+                }
+                <a href="javascript:void(0)"
+                   (click)="scrollTo('prosedur')"
+                   class="btn btn-hero-glass btn-lg rounded-pill px-4 py-3 d-inline-flex align-items-center justify-content-center">
+                  Pelajari Prosedur
+                </a>
+              </div>
+            </div>
+
+            <!-- Hero Illustration -->
+            <div class="col-lg-6 position-relative text-center text-lg-end">
+              <div class="hero-blob"></div>
+              <img src="assets/img/login/SIAP BOS_login_ilustrasi.png"
+                   alt="Ilustrasi SIAP BOS"
+                   class="img-fluid position-relative animate-float"
+                   style="max-height: 360px; object-fit: contain; z-index: 2;">
+            </div>
+          </div>
         </div>
 
-        @if (infoTab() === 'berita') {
-          <div class="row g-3">
-            @for (b of summary().berita; track b.id) {
-              <div class="col-md-4">
-                <div class="siap-card p-3 h-100">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge rounded-pill" style="background: #FFF3E0; color: #D97706;">{{ b.kategori }}</span>
-                    <small class="text-muted">{{ b.tanggal }}</small>
+        <!-- Organic White Wave Divider -->
+        <div class="hero-wave-bottom">
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
+               style="width: 100%; height: 95px; display: block;">
+            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V95.8C59.71,118.08,130.83,123.15,198.81,118.89,240.75,116.27,282.8,107.54,321.39,56.44Z"
+                  fill="#f8fafc"/>
+          </svg>
+        </div>
+      </header>
+
+      <!-- MAIN SECTIONS WRAPPER -->
+      <main>
+        <!-- 5 MENU UTAMA & SUB-MENU (HANYA MUNCUL SETELAH LOGIN) -->
+        @if (auth.isLoggedIn()) {
+          <section id="aplikasi-section" class="py-5" style="background: #f8fafc;">
+            <div class="container">
+              <div class="text-center mb-4">
+                <h2 class="h3 section-title mb-2">Menu Aplikasi</h2>
+                <p class="text-muted small mb-0">Pilih menu utama di bawah untuk mengakses sub-menu modul.</p>
+              </div>
+
+              <div class="row g-3 justify-content-center mb-4">
+                @for (grp of mainMenus; track grp.kode) {
+                  <div class="col-6 col-md-4 col-lg">
+                    <div class="main-menu-card"
+                         [class.active]="selectedMenu().kode === grp.kode"
+                         (click)="selectedMenu.set(grp)">
+                      <div class="menu-icon-circle">
+                        <i class="bi {{ grp.icon }}"></i>
+                      </div>
+                      <h6 class="fw-bold mb-0">{{ grp.nama }}</h6>
+                    </div>
                   </div>
-                  <h6 class="fw-bold mb-0">{{ b.judul }}</h6>
+                }
+              </div>
+
+              <div class="siap-card p-4 animate-page">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+                  <h6 class="fw-bold mb-0">
+                    <i class="bi {{ selectedMenu().icon }} me-2" style="color: #FF9A00;"></i>{{ selectedMenu().nama }}
+                  </h6>
+                  <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="openMainMenu(selectedMenu())">
+                    Buka {{ selectedMenu().nama }}
+                  </button>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                  @for (sub of selectedMenu().subMenus; track sub.link) {
+                    <a class="submenu-chip" (click)="openSubMenu(selectedMenu(), sub)">
+                      <i class="bi {{ sub.icon }}" style="color: #FF8000;"></i>
+                      <span>{{ sub.nama }}</span>
+                    </a>
+                  }
                 </div>
               </div>
-            }
-          </div>
+            </div>
+          </section>
         }
 
-        @if (infoTab() === 'peraturan') {
-          <div class="row g-3">
-            @for (p of summary().peraturan; track p.kode) {
-              <div class="col-md-6 col-lg-3">
-                <div class="siap-card p-3 h-100">
-                  <span class="badge rounded-pill mb-2" style="background: #FFF3E0; color: #D97706;">{{ p.lingkup }}</span>
-                  <div class="fw-bold small">{{ p.kode }}</div>
-                  <small class="text-muted">{{ p.tentang }}</small>
+        <!-- SECTION: BERITA & PENGUMUMAN -->
+        <section id="berita" class="py-5" style="background: #f8fafc;">
+          <div class="container py-lg-4">
+            <div class="text-center mb-5">
+              <h2 class="h2 section-title">Berita &amp; Pengumuman</h2>
+              <p class="mt-3 text-muted mb-0">Informasi terbaru seputar pengelolaan dana pendidikan di lingkungan DKI Jakarta.</p>
+            </div>
+
+            <div class="row g-4">
+              @for (item of beritaList; track item.id) {
+                <div class="col-md-6 col-lg-4">
+                  <article class="news-card">
+                    <div class="news-thumb" [style.background]="item.bannerGradient">
+                      <i class="bi {{ item.bannerIcon }} watermark-icon"></i>
+                      <span class="news-badge" [style.background]="item.badgeColor">{{ item.kategori }}</span>
+                    </div>
+                    <div class="p-4 d-flex flex-column flex-grow-1">
+                      <p class="small text-muted mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-calendar3"></i>
+                        <span>{{ item.tanggal }}</span>
+                      </p>
+                      <h5 class="fw-bold text-dark mb-2">{{ item.judul }}</h5>
+                      <p class="text-muted small mb-4 flex-grow-1" style="line-height: 1.6;">
+                        {{ item.ringkasan }}
+                      </p>
+                      <a href="javascript:void(0)"
+                         class="fw-semibold text-decoration-none d-inline-flex align-items-center gap-1"
+                         style="color: #FF9A00;"
+                         (click)="selectedBerita.set(item)">
+                        <span>Baca Selengkapnya</span>
+                        <i class="bi bi-chevron-right small"></i>
+                      </a>
+                    </div>
+                  </article>
                 </div>
-              </div>
-            }
+              }
+            </div>
           </div>
-        }
+        </section>
 
-        @if (infoTab() === 'prosedur') {
-          <div class="row g-3">
-            @for (s of summary().prosedur; track s.step) {
-              <div class="col-md-4 col-lg-2">
-                <div class="siap-card p-3 h-100 text-center">
-                  <div class="badge rounded-pill text-bg-warning text-dark mb-2">Tahap {{ s.step }}</div>
-                  <div class="fw-bold small">{{ s.title }}</div>
-                  <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">{{ s.actor }}</small>
+        <!-- SECTION: PERATURAN & JUKNIS -->
+        <section id="peraturan" class="py-5 bg-white">
+          <div class="container py-lg-4" style="max-width: 900px;">
+            <div class="text-center mb-5">
+              <h2 class="h2 section-title">Peraturan &amp; Juknis</h2>
+              <p class="mt-3 text-muted mb-0">Dokumen landasan hukum dan petunjuk teknis pelaksanaan.</p>
+            </div>
+
+            <div class="peraturan-box d-flex flex-column gap-3">
+              @for (doc of peraturanList; track doc.id) {
+                <div class="peraturan-item d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                  <div class="d-flex align-items-start align-items-sm-center gap-3">
+                    <div class="peraturan-icon-box" [style.background]="doc.iconBg" [style.color]="doc.iconColor">
+                      <i class="bi {{ doc.icon }}"></i>
+                    </div>
+                    <div>
+                      <h5 class="fw-bold text-dark mb-1" style="font-size: 1.05rem;">{{ doc.judul }}</h5>
+                      <p class="small text-muted mb-0">{{ doc.deskripsi }}</p>
+                    </div>
+                  </div>
+                  <button type="button" class="btn-unduh-pdf d-inline-flex align-items-center justify-content-center gap-2"
+                          (click)="selectedPeraturan.set(doc)">
+                    <i class="bi bi-download"></i>
+                    <span>Unduh PDF</span>
+                  </button>
                 </div>
-              </div>
-            }
+              }
+            </div>
           </div>
-        }
-      </div>
-    </section>
+        </section>
 
-    <!-- SIMPLE FOOTER -->
-    <footer class="py-3 border-top bg-white">
-      <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2 small text-muted">
-        <div class="d-flex align-items-center gap-2">
-          <span class="siap-logo-emblem p-1" style="border-radius: 8px;">
-            <img src="assets/img/login/Logo.png" alt="Logo SIAP BOS" width="22" height="22">
-          </span>
-          <strong class="text-dark">SIAP BOSP &amp; BOP</strong> · Dinas Pendidikan Provinsi DKI Jakarta
+        <!-- SECTION: SISTEM & PROSEDUR -->
+        <section id="prosedur" class="prosedur-section py-5">
+          <div class="prosedur-glow-orange"></div>
+          <div class="prosedur-glow-red"></div>
+
+          <div class="container py-lg-4 position-relative" style="z-index: 2;">
+            <div class="text-center mb-5">
+              <h2 class="h2 section-title section-title-dark">Sistem &amp; Prosedur</h2>
+              <p class="mt-3 mb-0" style="color: #9ca3af;">Alur pelaporan yang mudah, transparan, dan terintegrasi.</p>
+            </div>
+
+            <div class="row g-4 position-relative">
+              <div class="d-none d-lg-block prosedur-connector"></div>
+
+              @for (step of prosedurSteps; track step.no) {
+                <div class="col-md-6 col-lg-3 position-relative text-center" style="z-index: 2;">
+                  <div class="step-circle" [class.step-circle-final]="step.isFinal" [style.color]="step.isFinal ? '#ffffff' : step.iconColor">
+                    <i class="bi {{ step.icon }}"></i>
+                    <div class="step-number-badge"
+                         [style.background]="step.badgeBg"
+                         [style.color]="step.badgeTextColor">
+                      {{ step.no }}
+                    </div>
+                  </div>
+                  <h5 class="fw-bold text-white mb-2">{{ step.judul }}</h5>
+                  <p class="small mb-0 mx-auto" style="color: #9ca3af; max-width: 240px;">
+                    {{ step.deskripsi }}
+                  </p>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- FOOTER -->
+      <footer class="bg-white border-top pt-5 pb-4">
+        <div class="container">
+          <div class="row g-4 pb-4 border-bottom">
+            <!-- Col 1: Brand & Social -->
+            <div class="col-lg-6">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="siap-logo-emblem p-1" style="border-radius: 10px;">
+                  <img src="assets/img/login/Logo.png" alt="Logo SIAP BOS" width="32" height="32">
+                </div>
+                <span class="fw-bold fs-5 text-dark">SIAP BOSP &amp; BOP</span>
+              </div>
+              <p class="text-muted small mb-3" style="max-width: 440px; line-height: 1.65;">
+                Sistem Informasi Akuntabilitas Pendidikan.<br>
+                Portal resmi pelaporan dana Bantuan Operasional Satuan Pendidikan (BOSP) dan Bantuan Operasional Pendidikan (BOP) Provinsi DKI Jakarta.
+              </p>
+              <div class="d-flex gap-3">
+                <a href="javascript:void(0)" class="footer-link fs-5" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                <a href="javascript:void(0)" class="footer-link fs-5" aria-label="Twitter"><i class="bi bi-twitter-x"></i></a>
+                <a href="javascript:void(0)" class="footer-link fs-5" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                <a href="javascript:void(0)" class="footer-link fs-5" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+              </div>
+            </div>
+
+            <!-- Col 2: Tautan Penting -->
+            <div class="col-sm-6 col-lg-3">
+              <h6 class="fw-bold text-dark text-uppercase small mb-3" style="letter-spacing: 0.05em;">Tautan Penting</h6>
+              <ul class="list-unstyled d-flex flex-column gap-2 small mb-0">
+                <li><a href="https://jakarta.go.id" target="_blank" rel="noopener" class="footer-link">Pemprov DKI Jakarta</a></li>
+                <li><a href="https://disdik.jakarta.go.id" target="_blank" rel="noopener" class="footer-link">Dinas Pendidikan DKI</a></li>
+                <li><a href="https://www.kemdikbud.go.id" target="_blank" rel="noopener" class="footer-link">Kemendikbudristek</a></li>
+                <li><a href="https://pusdatin.kemdikbud.go.id" target="_blank" rel="noopener" class="footer-link">Pusdatin Dikbud</a></li>
+              </ul>
+            </div>
+
+            <!-- Col 3: Hubungi Kami -->
+            <div class="col-sm-6 col-lg-3">
+              <h6 class="fw-bold text-dark text-uppercase small mb-3" style="letter-spacing: 0.05em;">Hubungi Kami</h6>
+              <ul class="list-unstyled d-flex flex-column gap-2 small text-muted mb-0">
+                <li class="d-flex align-items-start gap-2">
+                  <i class="bi bi-geo-alt mt-1"></i>
+                  <span>Jl. Gatot Subroto Kav. 40-41, Kuningan Timur, Setiabudi, Jakarta Selatan.</span>
+                </li>
+                <li class="d-flex align-items-center gap-2">
+                  <i class="bi bi-telephone"></i>
+                  <span>(021) 5255385</span>
+                </li>
+                <li class="d-flex align-items-center gap-2">
+                  <i class="bi bi-envelope"></i>
+                  <span>helpdesk.bosp&#64;jakarta.go.id</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="pt-3 d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small text-muted">
+            <div>&copy; 2026 Dinas Pendidikan Provinsi DKI Jakarta. Hak Cipta Dilindungi.</div>
+            <div class="d-flex gap-3">
+              <a href="javascript:void(0)" class="footer-link">Kebijakan Privasi</a>
+              <a href="javascript:void(0)" class="footer-link">Syarat &amp; Ketentuan</a>
+            </div>
+          </div>
         </div>
-        <div>Schema DB: <code>auth</code> · <code>oauth</code> · <code>siap</code></div>
-      </div>
-    </footer>
+      </footer>
 
-    <!-- MODAL UBAH PASSWORD -->
-    @if (showPasswordModal()) {
-      <div class="modal-backdrop-custom" (click)="showPasswordModal.set(false)">
-        <div class="modal-dialog-custom" style="max-width: 420px;" (click)="$event.stopPropagation()">
-          <div class="siap-card-header d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0"><i class="bi bi-key-fill text-warning me-2"></i>Ubah Kata Sandi</h6>
-            <button class="btn-close btn-sm" (click)="showPasswordModal.set(false)"></button>
-          </div>
-          <div class="modal-body-scroll">
-            <div class="mb-2">
-              <label class="form-label small fw-semibold mb-1">ID Login / NRK</label>
-              <input class="form-control form-control-sm" [(ngModel)]="pwdForm.nrk" placeholder="Contoh: ADMIN-TDI atau 199003">
+      <!-- MODAL BACA BERITA -->
+      @if (selectedBerita()) {
+        <div class="modal-backdrop-custom" (click)="selectedBerita.set(null)">
+          <div class="modal-dialog-custom" style="max-width: 560px;" (click)="$event.stopPropagation()">
+            <div class="siap-card-header d-flex justify-content-between align-items-center">
+              <span class="badge rounded-pill text-white" [style.background]="selectedBerita()!.badgeColor">
+                {{ selectedBerita()!.kategori }}
+              </span>
+              <button class="btn-close btn-sm" (click)="selectedBerita.set(null)"></button>
             </div>
-            <div class="mb-2">
-              <label class="form-label small fw-semibold mb-1">Kata Sandi Lama</label>
-              <input type="password" class="form-control form-control-sm" [(ngModel)]="pwdForm.sandiLama">
+            <div class="modal-body-scroll">
+              <small class="text-muted d-block mb-1"><i class="bi bi-calendar3 me-1"></i>{{ selectedBerita()!.tanggal }}</small>
+              <h5 class="fw-bold text-dark mb-3">{{ selectedBerita()!.judul }}</h5>
+              <p class="text-secondary mb-0" style="line-height: 1.7;">{{ selectedBerita()!.isiLengkap }}</p>
             </div>
-            <div class="mb-3">
-              <label class="form-label small fw-semibold mb-1">Kata Sandi Baru</label>
-              <input type="password" class="form-control form-control-sm" [(ngModel)]="pwdForm.sandiBaru">
-            </div>
-            <button class="btn btn-siap w-100 rounded-pill" (click)="submitChangePassword()">Simpan Kata Sandi</button>
           </div>
         </div>
-      </div>
-    }
+      }
+
+      <!-- MODAL DOKUMEN PERATURAN -->
+      @if (selectedPeraturan()) {
+        <div class="modal-backdrop-custom" (click)="selectedPeraturan.set(null)">
+          <div class="modal-dialog-custom" style="max-width: 500px;" (click)="$event.stopPropagation()">
+            <div class="siap-card-header d-flex justify-content-between align-items-center">
+              <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>{{ selectedPeraturan()!.judul }}</h6>
+              <button class="btn-close btn-sm" (click)="selectedPeraturan.set(null)"></button>
+            </div>
+            <div class="modal-body-scroll">
+              <p class="small text-secondary mb-3">{{ selectedPeraturan()!.deskripsi }}</p>
+              <div class="p-3 rounded-3 bg-light border small mb-3">
+                Berkas dokumen <strong>{{ selectedPeraturan()!.kodeFile }}</strong> tersedia untuk diunduh sebagai referensi tata kelola BOSP &amp; BOP DKI Jakarta.
+              </div>
+              <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-light rounded-pill px-3" (click)="selectedPeraturan.set(null)">Tutup</button>
+                <button class="btn btn-siap rounded-pill px-4" (click)="downloadPeraturanText(selectedPeraturan()!)">
+                  <i class="bi bi-download me-1"></i>Unduh Dokumen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- MODAL GANTI PASSWORD (DENGAN KONFIRMASI SANDI BARU) -->
+      @if (showPasswordModal()) {
+        <div class="modal-backdrop-custom" (click)="showPasswordModal.set(false)">
+          <div class="modal-dialog-custom" style="max-width: 420px;" (click)="$event.stopPropagation()">
+            <div class="siap-card-header d-flex justify-content-between align-items-center">
+              <h6 class="fw-bold mb-0"><i class="bi bi-key-fill text-warning me-2"></i>Ganti Password</h6>
+              <button class="btn-close btn-sm" (click)="showPasswordModal.set(false)"></button>
+            </div>
+            <div class="modal-body-scroll">
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">NRK / ID Login</label>
+                <input class="form-control form-control-sm" [(ngModel)]="pwdForm.nrk" placeholder="Masukkan NRK / ID Login">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Sandi Lama</label>
+                <input type="password" class="form-control form-control-sm" [(ngModel)]="pwdForm.sandiLama" placeholder="Masukkan Sandi Lama">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Sandi Baru</label>
+                <input type="password" class="form-control form-control-sm" [(ngModel)]="pwdForm.sandiBaru" placeholder="Masukkan Sandi Baru">
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold mb-1">Konfirmasi Sandi Baru</label>
+                <input type="password" class="form-control form-control-sm" [(ngModel)]="pwdForm.konfirmasiSandiBaru" placeholder="Ulangi Sandi Baru">
+              </div>
+              <button class="btn btn-siap w-100 rounded-pill" (click)="submitChangePassword()">Simpan Kata Sandi</button>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
   `
 })
-export class LandingPageComponent implements OnInit {
+export class LandingPageComponent {
   readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
@@ -647,7 +928,125 @@ export class LandingPageComponent implements OnInit {
 
   readonly showAppMenu = signal(false);
   readonly showPasswordModal = signal(false);
-  readonly infoTab = signal<'menu' | 'berita' | 'peraturan' | 'prosedur'>('berita');
+  readonly mobileMenuOpen = signal(false);
+  readonly isScrolled = signal(false);
+  readonly selectedBerita = signal<BeritaItem | null>(null);
+  readonly selectedPeraturan = signal<PeraturanItem | null>(null);
+
+  readonly beritaList: BeritaItem[] = [
+    {
+      id: 1,
+      kategori: 'BOSP',
+      badgeColor: '#FF9A00',
+      bannerGradient: 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)',
+      bannerIcon: 'bi-calendar2-check-fill',
+      tanggal: '12 November 2026',
+      judul: 'Jadwal Cut-off Sinkronisasi Data Dapodik untuk Pencairan Tahap 2',
+      ringkasan:
+        'Diberitahukan kepada seluruh satuan pendidikan, batas akhir penarikan data (cut-off) Dapodik untuk penentuan alokasi BOSP Tahap 2 adalah tanggal 30 November.',
+      isiLengkap:
+        'Diberitahukan kepada seluruh Kepala Sekolah dan Bendahara Satuan Pendidikan Negeri di lingkungan Dinas Pendidikan Provinsi DKI Jakarta bahwa batas akhir penarikan dan sinkronisasi data Dapodik untuk penentuan alokasi dana BOSP Tahap 2 adalah tanggal 30 November. Harap pastikan data peserta didik serta nomor rekening giro Bank DKI sekolah telah terkonfirmasi dengan benar.'
+    },
+    {
+      id: 2,
+      kategori: 'BOP',
+      badgeColor: '#3b82f6',
+      bannerGradient: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
+      bannerIcon: 'bi-laptop-fill',
+      tanggal: '08 November 2026',
+      judul: 'Sosialisasi Penggunaan Aplikasi SIAP Versi 2.0 untuk PAUD',
+      ringkasan:
+        'Dinas Pendidikan Provinsi DKI Jakarta menyelenggarakan sosialisasi pembaruan aplikasi pelaporan BOP khusus untuk jenjang PAUD dan Kesetaraan.',
+      isiLengkap:
+        'Dinas Pendidikan Provinsi DKI Jakarta menyelenggarakan bimbingan teknis dan sosialisasi pembaruan sistem pelaporan SIAP BOP secara terpadu. Materi meliputi pengajuan Nota Pencairan Dana (NPD) terintegrasi SIPKD, pencatatan belanja BKU, pemungutan pajak MPN G3, serta penyusunan BAP Kas periodik.'
+    },
+    {
+      id: 3,
+      kategori: 'UMUM',
+      badgeColor: '#374151',
+      bannerGradient: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+      bannerIcon: 'bi-award-fill',
+      tanggal: '01 November 2026',
+      judul: 'Penghargaan Sekolah dengan Pelaporan BOSP Terbaik 2026',
+      ringkasan:
+        'Apresiasi diberikan kepada sekolah yang tertib administrasi dan melaporkan realisasi penggunaan dana BOSP tepat waktu dan sesuai dengan petunjuk teknis.',
+      isiLengkap:
+        'Penghargaan diberikan kepada satuan pendidikan negeri di 5 wilayah Kota Administrasi dan Kepulauan Seribu yang konsisten melakukan tutup buku BKU tepat waktu, melakukan rekonsiliasi mutasi Bank DKI secara berkala, serta menyelesaikan setoran pajak NTPN tanpa tunggakan.'
+    }
+  ];
+
+  readonly peraturanList: PeraturanItem[] = [
+    {
+      id: 1,
+      judul: 'Permendikbudristek No. 63 Tahun 2022',
+      deskripsi: 'Petunjuk Teknis Pengelolaan Dana Bantuan Operasional Satuan Pendidikan.',
+      icon: 'bi-file-earmark-text',
+      iconBg: '#fef2f2',
+      iconColor: '#ef4444',
+      kodeFile: 'Permendikbudristek_No_63_Tahun_2022_Juknis_BOSP.txt'
+    },
+    {
+      id: 2,
+      judul: 'Pergub DKI Jakarta No. 12 Tahun 2024',
+      deskripsi: 'Pedoman Pelaksanaan BOP Jenjang PAUD dan Pendidikan Kesetaraan.',
+      icon: 'bi-file-earmark-text',
+      iconBg: '#fef2f2',
+      iconColor: '#ef4444',
+      kodeFile: 'Pergub_DKI_Jakarta_No_12_Tahun_2024_BOP.txt'
+    },
+    {
+      id: 3,
+      judul: 'Buku Panduan SIAP Versi 2.0',
+      deskripsi: 'Manual penggunaan aplikasi untuk Bendahara dan Kepala Sekolah.',
+      icon: 'bi-book',
+      iconBg: '#eff6ff',
+      iconColor: '#3b82f6',
+      kodeFile: 'Buku_Panduan_SIAP_BOSP_BOP_v2.txt'
+    }
+  ];
+
+  readonly prosedurSteps = [
+    {
+      no: 1,
+      judul: 'Otentikasi Akun',
+      deskripsi: 'Login menggunakan akun SSO yang divalidasi oleh Dinas Pendidikan.',
+      icon: 'bi-shield-check',
+      iconColor: '#FF9A00',
+      badgeBg: '#FF9A00',
+      badgeTextColor: '#ffffff',
+      isFinal: false
+    },
+    {
+      no: 2,
+      judul: 'Input RKAS',
+      deskripsi: 'Sekolah menyusun dan memasukkan Rencana Kegiatan dan Anggaran Sekolah.',
+      icon: 'bi-file-earmark-spreadsheet',
+      iconColor: '#60a5fa',
+      badgeBg: '#3b82f6',
+      badgeTextColor: '#ffffff',
+      isFinal: false
+    },
+    {
+      no: 3,
+      judul: 'Pencatatan Realisasi',
+      deskripsi: 'Input realisasi penggunaan dana setiap bulan disertai bukti transaksi.',
+      icon: 'bi-calculator',
+      iconColor: '#fbbf24',
+      badgeBg: '#eab308',
+      badgeTextColor: '#ffffff',
+      isFinal: false
+    },
+    {
+      no: 4,
+      judul: 'Validasi & Pelaporan',
+      deskripsi: 'Review oleh Kepala Sekolah dan otomatisasi laporan SPTJM untuk Dinas.',
+      icon: 'bi-send-check',
+      iconColor: '#ffffff',
+      badgeBg: '#ffffff',
+      badgeTextColor: '#FF9A00',
+      isFinal: true
+    }
+  ];
 
   readonly mainMenus: MainMenuGroup[] = [
     {
@@ -655,8 +1054,6 @@ export class LandingPageComponent implements OnInit {
       nama: 'User Management',
       link: 'user-management',
       icon: 'bi-people-fill',
-      badge: '7 Sub-Menu',
-      color: '#FF9A00',
       subMenus: [
         { nama: 'Pengguna', link: 'pengguna', icon: 'bi-person-badge' },
         { nama: 'Otoritas', link: 'otoritas', icon: 'bi-shield-lock' },
@@ -672,8 +1069,6 @@ export class LandingPageComponent implements OnInit {
       nama: 'BKU BOSP Negeri',
       link: 'bos-negeri',
       icon: 'bi-journal-bookmark-fill',
-      badge: '27 Sub-Menu',
-      color: '#FF9A00',
       subMenus: [
         { nama: 'Dashboard BKU BOSP', link: 'dashboard', icon: 'bi-speedometer2' },
         { nama: 'Dropping Dana BOSP', link: 'konfirmasi-drop-dana', icon: 'bi-box-arrow-in-down' },
@@ -709,8 +1104,6 @@ export class LandingPageComponent implements OnInit {
       nama: 'BKU BOP Negeri',
       link: 'bku-bop',
       icon: 'bi-bank2',
-      badge: '30 Sub-Menu',
-      color: '#FF9A00',
       subMenus: [
         { nama: 'Dashboard BKU BOP', link: 'dashboard', icon: 'bi-speedometer2' },
         { nama: 'Permohonan NPD', link: 'konfirmasi-drop-dana-bop', icon: 'bi-file-earmark-text' },
@@ -749,8 +1142,6 @@ export class LandingPageComponent implements OnInit {
       nama: 'Administrator',
       link: 'administrator',
       icon: 'bi-sliders2-vertical',
-      badge: '7 Sub-Menu',
-      color: '#FF9A00',
       subMenus: [
         { nama: 'Batas Pengajuan Belanja', link: 'batas-pengajuan-belanja-list-opd', icon: 'bi-calendar-range' },
         { nama: 'Help Desk Pembayaran BKU BOSP', link: 'help-pembayaran-bos', icon: 'bi-life-preserver' },
@@ -766,8 +1157,6 @@ export class LandingPageComponent implements OnInit {
       nama: 'Help Desk',
       link: 'helpdesk',
       icon: 'bi-headset',
-      badge: '3 Sub-Menu',
-      color: '#FF9A00',
       subMenus: [
         { nama: 'User Manual', link: 'user-manual', icon: 'bi-book-half' },
         { nama: 'Help Desk', link: 'tiket-helpdesk', icon: 'bi-ticket-detailed' },
@@ -776,87 +1165,66 @@ export class LandingPageComponent implements OnInit {
     }
   ];
 
-  readonly selectedMenu = signal<MainMenuGroup>(this.mainMenus[1]); // Default highlight: BKU BOSP Negeri
+  readonly selectedMenu = signal<MainMenuGroup>(this.mainMenus[1]);
 
-  readonly summary = signal<any>({
-    jumlahSekolah: 3,
-    totalPagu: 248000000,
-    totalRealisasi: 66090000,
-    persenSerapan: 26.6,
-    berita: [
-      { id: 1, kategori: 'BOSP 2025/2026', tanggal: 'Terbaru', judul: 'Penyaluran Dana BOSP & Rekonsiliasi BKU Negeri' },
-      { id: 2, kategori: 'BOP & SIPKD', tanggal: 'Terbaru', judul: 'Integrasi NPD BOP Real-Time dengan SIPKD BPKD' },
-      { id: 3, kategori: 'Pajak MPN G3', tanggal: 'Terbaru', judul: 'Validasi NPWP 16 Digit & Cetak Bukti NTPN Formulir 25' }
-    ],
-    peraturan: [
-      { kode: 'Permendikbudristek No. 63/2023', tentang: 'Juknis Pengelolaan Dana BOSP', lingkup: 'BOSP APBN' },
-      { kode: 'Pergub DKI Jakarta No. 48/2023', tentang: 'Pedoman Dana BOP Satuan Pendidikan', lingkup: 'BOP APBD' },
-      { kode: 'PMK No. 59/PMK.03/2022', tentang: 'Tata Cara Pemungutan Pajak Instansi', lingkup: 'Pajak MPN' },
-      { kode: 'SE Kadisdik DKI Jakarta', tentang: 'Jadwal Cut-Off SPJ, BAP Kas & Tutup Buku', lingkup: 'Tata Kelola' }
-    ],
-    prosedur: [
-      { step: 1, title: 'Konfirmasi Rekening', actor: 'Bendahara' },
-      { step: 2, title: 'Dropping / NPD', actor: 'PK & Sudin' },
-      { step: 3, title: 'Input BKU & Pajak', actor: 'Bendahara' },
-      { step: 4, title: 'Approval TU & PA', actor: 'TU & Kepsek' },
-      { step: 5, title: 'Token & Transfer CMS', actor: 'PA & Bank DKI' },
-      { step: 6, title: 'BAP Kas & Laporan', actor: 'PK, PA & Dinas' }
-    ]
-  });
+  pwdForm = { nrk: '', sandiLama: '', sandiBaru: '', konfirmasiSandiBaru: '' };
 
-  pwdForm = { nrk: '', sandiLama: '', sandiBaru: '' };
-
-  ngOnInit(): void {
-    this.http.get<any>('/auth-server/api/public/landing-summary').subscribe({
-      next: (res) => {
-        if (res?.data) {
-          this.summary.set(res.data);
-        }
-      },
-      error: () => {}
-    });
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    this.isScrolled.set(window.scrollY > 10);
   }
 
-  scrollToSection(id: string): void {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  selectInfoTab(tab: 'berita' | 'peraturan' | 'prosedur'): void {
-    this.infoTab.set(tab);
-    document.getElementById('info-section')?.scrollIntoView({ behavior: 'smooth' });
+  scrollTo(sectionId: string): void {
+    if (sectionId === 'beranda') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   openMainMenu(grp: MainMenuGroup): void {
     const firstSub = grp.subMenus[0]?.link || '';
-    if (this.auth.isLoggedIn()) {
-      this.router.navigateByUrl(`/${grp.link}/${firstSub}`);
-    } else {
-      this.toast.info(`Silakan login terlebih dahulu untuk membuka menu ${grp.nama}.`);
-      this.router.navigate(['/login']);
-    }
+    this.router.navigateByUrl(`/${grp.link}/${firstSub}`);
   }
 
   openSubMenu(grp: MainMenuGroup, sub: { nama: string; link: string }): void {
-    if (this.auth.isLoggedIn()) {
-      this.router.navigateByUrl(`/${grp.link}/${sub.link}`);
-    } else {
-      this.toast.info(`Silakan login untuk mengakses ${grp.nama} → ${sub.nama}.`);
-      this.router.navigate(['/login']);
-    }
+    this.router.navigateByUrl(`/${grp.link}/${sub.link}`);
+  }
+
+  downloadPeraturanText(doc: PeraturanItem): void {
+    const content = `${doc.judul}\n${doc.deskripsi}\n\nDinas Pendidikan Provinsi DKI Jakarta - Portal SIAP BOSP & BOP`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.kodeFile;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.toast.success(`Dokumen ${doc.judul} berhasil diunduh.`);
   }
 
   submitChangePassword(): void {
-    if (!this.pwdForm.nrk || !this.pwdForm.sandiLama || !this.pwdForm.sandiBaru) {
-      this.toast.error('Harap lengkapi seluruh kolom ubah kata sandi.');
+    if (!this.pwdForm.nrk || !this.pwdForm.sandiLama || !this.pwdForm.sandiBaru || !this.pwdForm.konfirmasiSandiBaru) {
+      this.toast.error('Harap lengkapi seluruh kolom ganti kata sandi.');
       return;
     }
-    this.http.post<any>('/auth-server/api/auth/change-password', this.pwdForm).subscribe({
-      next: (res) => {
-        this.toast.success(res?.message || 'Kata sandi berhasil diperbarui.');
-        this.showPasswordModal.set(false);
-        this.pwdForm = { nrk: '', sandiLama: '', sandiBaru: '' };
-      },
-      error: (err) => this.toast.error(err?.error?.message || 'Gagal mengubah kata sandi.')
-    });
+    if (this.pwdForm.sandiBaru !== this.pwdForm.konfirmasiSandiBaru) {
+      this.toast.error('Konfirmasi sandi baru tidak sesuai dengan sandi baru.');
+      return;
+    }
+    this.http
+      .post<any>('/auth-server/api/auth/change-password', {
+        nrk: this.pwdForm.nrk,
+        sandiLama: this.pwdForm.sandiLama,
+        sandiBaru: this.pwdForm.sandiBaru
+      })
+      .subscribe({
+        next: (res) => {
+          this.toast.success(res?.message || 'Kata sandi berhasil diperbarui.');
+          this.showPasswordModal.set(false);
+          this.pwdForm = { nrk: '', sandiLama: '', sandiBaru: '', konfirmasiSandiBaru: '' };
+        },
+        error: (err) => this.toast.error(err?.error?.message || 'Gagal mengubah kata sandi.')
+      });
   }
 }

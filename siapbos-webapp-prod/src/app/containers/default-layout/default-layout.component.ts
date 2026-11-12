@@ -166,11 +166,7 @@ import { ToastService } from '../../core/services/toast.service';
           </nav>
 
           <div class="p-3 border-top small text-muted" style="background: #FFFBF5; font-size: 0.72rem;">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="pulse-dot"></span>
-              <span class="text-dark fw-bold">DB Schema: auth · oauth · siap</span>
-            </div>
-            <div>{{ auth.activeSekolah()?.namaSekolah || 'Dinas Pendidikan DKI Jakarta' }}</div>
+            <div class="fw-bold text-dark">{{ auth.activeSekolah()?.namaSekolah || 'Dinas Pendidikan DKI Jakarta' }}</div>
           </div>
         </aside>
 
@@ -207,7 +203,7 @@ import { ToastService } from '../../core/services/toast.service';
 
           <footer class="bg-white border-top px-4 py-2 d-flex flex-wrap justify-content-between align-items-center text-muted small">
             <span>PUSAT DATA DAN INFORMASI KEUANGAN {{ auth.tahunAnggaran() }} · DINAS PENDIDIKAN PROVINSI DKI JAKARTA</span>
-            <span><strong style="color: #FF9A00;">SIAP BOSP &amp; BOP</strong> · Schema: <code>auth</code>, <code>oauth</code>, <code>siap</code></span>
+            <span><strong style="color: #FF9A00;">SIAP BOSP &amp; BOP</strong></span>
           </footer>
         </main>
       </div>
@@ -236,20 +232,20 @@ import { ToastService } from '../../core/services/toast.service';
     }
     .topbar-mod-pill {
       color: #ffffff;
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      transition: all 0.18s ease;
-      font-size: 0.8rem;
+      background: transparent;
+      border: none;
+      transition: opacity 0.18s ease;
+      font-size: 0.84rem;
     }
     .topbar-mod-pill:hover {
-      background: rgba(255, 255, 255, 0.28);
+      background: transparent;
       color: #ffffff;
+      opacity: 0.85;
     }
     .topbar-mod-pill.active-mod {
-      background: #ffffff;
-      color: #D97706;
-      border-color: #ffffff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      background: rgba(255, 255, 255, 0.22);
+      color: #ffffff;
+      border: none;
     }
     .top-submenu-dropdown {
       position: absolute;
