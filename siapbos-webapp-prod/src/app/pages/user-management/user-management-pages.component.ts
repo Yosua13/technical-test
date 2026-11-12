@@ -7,150 +7,174 @@ import { ToastService } from '../../core/services/toast.service';
 import { Sekolah } from '../../core/models/siapbos.models';
 
 // =========================================================================
-// 1. MANAJEMEN PENGGUNA + INQUIRY SIMPEG BY NRK
+// 1. MANAJEMEN PENGGUNA (FULL-WIDTH TABLE + MODAL DIALOG TAMBAH/EDIT)
 // =========================================================================
 @Component({
   selector: 'app-pengguna-mgmt',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
+    <!-- Toolbar Aksi: Pencarian + Tombol Primary CTA (+ Tambah Pengguna) -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div>
-        <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-warning me-2"></i>Manajemen Pengguna &amp; Sinkronisasi SIMPEG</h5>
-        <small class="text-muted">Tambah atau kelola akun pengelola dana BOS/BOP menggunakan integrasi Inquiry Pegawai SIMPEG berdasarkan NRK.</small>
+      <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 440px;">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+          <input class="form-control border-start-0 ps-0"
+                 [(ngModel)]="searchText"
+                 placeholder="Cari nama, username, NRK, atau role...">
+        </div>
+        <span class="badge badge-neutral rounded-pill px-3 py-2 flex-shrink-0">
+          {{ filteredUsers().length }} Pengguna
+        </span>
       </div>
-      <div class="d-flex gap-2">
-        <input class="form-control form-control-sm" style="width: 220px;" [(ngModel)]="searchText" placeholder="Cari nama / username / NRK...">
-        <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="openNew()">
-          <i class="bi bi-person-plus me-1"></i>Tambah Pengguna
-        </button>
+
+      <button type="button" class="btn btn-sm btn-siap rounded-pill px-4 py-2 d-inline-flex align-items-center gap-2" (click)="openNewModal()">
+        <i class="bi bi-plus-lg"></i>
+        <span>Tambah Pengguna</span>
+      </button>
+    </div>
+
+    <!-- Tabel Daftar Pengguna Lebar Penuh (Full Width) -->
+    <div class="siap-card overflow-hidden">
+      <div class="table-responsive">
+        <table class="table table-siap table-hover w-100">
+          <thead>
+            <tr>
+              <th>Pengguna</th>
+              <th>NRK / NIP</th>
+              <th>Role &amp; Jabatan</th>
+              <th>Satuan Pendidikan / Unit Kerja</th>
+              <th>Status</th>
+              <th class="text-end">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of filteredUsers(); track u.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold text-dark">{{ u.namaLengkap }}</div>
+                  <small class="text-muted">&#64;{{ u.username }}</small>
+                </td>
+                <td>
+                  <div class="fw-medium text-dark">NRK {{ u.nrk }}</div>
+                  <small class="text-muted">{{ u.nip || '-' }}</small>
+                </td>
+                <td>
+                  <span class="badge badge-role rounded-pill px-2 py-1">{{ u.roleCode }}</span>
+                  <div class="small text-muted mt-1">{{ u.jabatan }}</div>
+                </td>
+                <td class="text-secondary">{{ u.namaSekolah }}</td>
+                <td>
+                  <span class="badge rounded-pill px-2 py-1"
+                        [ngClass]="u.isActive ? 'bg-success-subtle text-success border border-success-subtle' : 'badge-neutral'">
+                    {{ u.isActive ? 'Aktif' : 'Nonaktif' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-neutral rounded-pill px-3" (click)="openEditModal(u)">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="text-center text-muted py-5">
+                  Tidak ada data pengguna yang sesuai pencarian.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <div class="row g-3">
-      <!-- Form Tambah / Edit -->
-      <div class="col-lg-4">
-        <div class="siap-card p-3">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">{{ editId() ? 'Edit Pengguna #' + editId() : 'Tambah Pengguna Baru' }}</h6>
-            @if (editId()) {
-              <button class="btn btn-xs btn-link text-decoration-none p-0 small" (click)="openNew()">Reset ke Baru</button>
-            }
+    <!-- Modal Dialog: Form Tambah / Edit Pengguna -->
+    @if (showFormModal()) {
+      <div class="modal-backdrop-custom" (click)="closeModal()">
+        <div class="modal-dialog-custom" style="max-width: 580px;" (click)="$event.stopPropagation()">
+          <div class="siap-card-header d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-dark">
+              <i class="bi bi-person-badge me-2 text-secondary"></i>
+              {{ editId() ? 'Edit Pengguna #' + editId() : 'Tambah Pengguna Baru' }}
+            </h6>
+            <button type="button" class="btn-close btn-sm" (click)="closeModal()"></button>
           </div>
 
-          <div class="mb-2">
-            <label class="form-label small fw-semibold mb-1">NRK Pegawai DKI Jakarta</label>
-            <div class="input-group input-group-sm">
-              <input class="form-control fw-semibold" [(ngModel)]="form.nrk" placeholder="Contoh: 185432">
-              <button class="btn btn-info text-white fw-semibold" type="button" (click)="cekSimpeg()">
-                <i class="bi bi-search me-1"></i>Cek SIMPEG
+          <div class="modal-body-scroll">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold mb-1">NRK Pegawai DKI Jakarta</label>
+              <div class="input-group">
+                <input class="form-control" [(ngModel)]="form.nrk" placeholder="Contoh: 185432">
+                <button class="btn btn-neutral" type="button" (click)="cekSimpeg()">
+                  <i class="bi bi-search me-1"></i>Cek SIMPEG
+                </button>
+              </div>
+              <small class="text-muted">Sinkronisasi otomatis Nama, NIP, dan Jabatan dari layanan SIMPEG.</small>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">Username Login</label>
+                <input class="form-control" [(ngModel)]="form.username" [disabled]="!!editId()" placeholder="Contoh: bendahara.baru">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">Password {{ editId() ? '(Opsional)' : '' }}</label>
+                <input type="password" class="form-control" [(ngModel)]="form.password" placeholder="password123">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold mb-1">Nama Lengkap</label>
+              <input class="form-control" [(ngModel)]="form.namaLengkap" placeholder="Nama lengkap beserta gelar">
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">NIP</label>
+                <input class="form-control" [(ngModel)]="form.nip" placeholder="Nomor Induk Pegawai">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">No. HP / WhatsApp</label>
+                <input class="form-control" [(ngModel)]="form.noHp" placeholder="0812xxxxxxxx">
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">Role / Otoritas</label>
+                <select class="form-select" [(ngModel)]="form.roleCode">
+                  @for (r of roles(); track r.roleCode) {
+                    <option [value]="r.roleCode">{{ r.roleCode }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">Unit Sekolah</label>
+                <select class="form-select" [(ngModel)]="form.sekolahId">
+                  <option [ngValue]="null">Dinas / Sudin (Non-Sekolah)</option>
+                  @for (s of auth.sekolahList(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.namaSekolah }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label small fw-semibold mb-1">Jabatan</label>
+              <input class="form-control" [(ngModel)]="form.jabatan" placeholder="Jabatan penanggung jawab">
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="closeModal()">Batal</button>
+              <button type="button" class="btn btn-siap rounded-pill px-4" (click)="saveUser()" [disabled]="saving()">
+                @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span>Menyimpan... }
+                @else { <i class="bi bi-check2 me-1"></i>{{ editId() ? 'Simpan Perubahan' : 'Simpan Pengguna' }} }
               </button>
             </div>
-            <small class="text-muted">Memanggil <code>/api/simpeg/getPegawai/byNrk</code> pada :5004</small>
-          </div>
-
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">Username Login</label>
-              <input class="form-control form-control-sm" [(ngModel)]="form.username" [disabled]="!!editId()">
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">Password {{ editId() ? '(Opsional)' : '' }}</label>
-              <input type="password" class="form-control form-control-sm" [(ngModel)]="form.password" placeholder="password123">
-            </div>
-          </div>
-
-          <div class="mb-2">
-            <label class="form-label small fw-semibold mb-1">Nama Lengkap</label>
-            <input class="form-control form-control-sm" [(ngModel)]="form.namaLengkap">
-          </div>
-
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">NIP</label>
-              <input class="form-control form-control-sm" [(ngModel)]="form.nip">
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">No. HP / WA</label>
-              <input class="form-control form-control-sm" [(ngModel)]="form.noHp">
-            </div>
-          </div>
-
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">Role / Otoritas</label>
-              <select class="form-select form-select-sm" [(ngModel)]="form.roleCode">
-                @for (r of roles(); track r.roleCode) {
-                  <option [value]="r.roleCode">{{ r.roleCode }}</option>
-                }
-              </select>
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-semibold mb-1">Unit Sekolah</label>
-              <select class="form-select form-select-sm" [(ngModel)]="form.sekolahId">
-                <option [ngValue]="null">Dinas / Sudin (Non-Sekolah)</option>
-                @for (s of auth.sekolahList(); track s.id) {
-                  <option [ngValue]="s.id">{{ s.namaSekolah }}</option>
-                }
-              </select>
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-semibold mb-1">Jabatan</label>
-            <input class="form-control form-control-sm" [(ngModel)]="form.jabatan">
-          </div>
-
-          <button class="btn btn-siap w-100 rounded-pill" (click)="saveUser()" [disabled]="saving()">
-            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span>Menyimpan... }
-            @else { <i class="bi bi-save me-1"></i>{{ editId() ? 'Simpan Perubahan' : 'Simpan Pengguna Baru' }} }
-          </button>
-        </div>
-      </div>
-
-      <!-- Tabel Pengguna -->
-      <div class="col-lg-8">
-        <div class="siap-card">
-          <div class="table-responsive">
-            <table class="table table-siap table-hover">
-              <thead>
-                <tr>
-                  <th>Username &amp; Nama</th>
-                  <th>NRK / NIP</th>
-                  <th>Role &amp; Jabatan</th>
-                  <th>Satuan Pendidikan</th>
-                  <th class="text-end">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (u of filteredUsers(); track u.id) {
-                  <tr>
-                    <td>
-                      <div class="fw-bold">{{ u.namaLengkap }}</div>
-                      <small class="text-muted">&#64;{{ u.username }}</small>
-                    </td>
-                    <td class="small">
-                      <div>NRK: <strong>{{ u.nrk }}</strong></div>
-                      <small class="text-muted">{{ u.nip || '-' }}</small>
-                    </td>
-                    <td>
-                      <span class="badge text-bg-warning text-dark">{{ u.roleCode }}</span>
-                      <div class="small text-muted mt-1">{{ u.jabatan }}</div>
-                    </td>
-                    <td class="small">{{ u.namaSekolah }}</td>
-                    <td class="text-end">
-                      <button class="btn btn-sm btn-outline-primary py-0 px-2" (click)="selectEdit(u)">
-                        <i class="bi bi-pencil"></i> Edit
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
-    </div>
+    }
   `
 })
 export class PenggunaMgmtComponent implements OnInit {
@@ -161,6 +185,7 @@ export class PenggunaMgmtComponent implements OnInit {
   readonly users = signal<any[]>([]);
   readonly roles = signal<any[]>([]);
   readonly editId = signal<number | null>(null);
+  readonly showFormModal = signal(false);
   readonly saving = signal(false);
   searchText = '';
 
@@ -206,12 +231,13 @@ export class PenggunaMgmtComponent implements OnInit {
     this.api.getUsers().subscribe({ next: (res) => this.users.set(res.data || []) });
   }
 
-  openNew(): void {
+  openNewModal(): void {
     this.editId.set(null);
     this.form = this.emptyForm();
+    this.showFormModal.set(true);
   }
 
-  selectEdit(u: any): void {
+  openEditModal(u: any): void {
     this.editId.set(u.id);
     this.form = {
       username: u.username,
@@ -228,6 +254,11 @@ export class PenggunaMgmtComponent implements OnInit {
       sekolahId: u.sekolahId,
       isActive: u.isActive
     };
+    this.showFormModal.set(true);
+  }
+
+  closeModal(): void {
+    this.showFormModal.set(false);
   }
 
   cekSimpeg(): void {
@@ -263,7 +294,7 @@ export class PenggunaMgmtComponent implements OnInit {
       next: (res) => {
         this.saving.set(false);
         this.toast.success(res.message);
-        this.openNew();
+        this.closeModal();
         this.loadUsers();
       },
       error: (err) => {
@@ -275,113 +306,112 @@ export class PenggunaMgmtComponent implements OnInit {
 }
 
 // =========================================================================
-// 2. DATA SEKOLAH NEGERI
+// 2. MASTER SEKOLAH NEGERI (FULL-WIDTH TABLE + MODAL DIALOG EDIT)
 // =========================================================================
 @Component({
   selector: 'app-sekolah-mgmt',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h5 class="fw-bold mb-0"><i class="bi bi-buildings text-warning me-2"></i>Master Data Sekolah &amp; Pejabat Penanggung Jawab</h5>
-        <small class="text-muted">Kelola profil satuan pendidikan, nomor rekening BOS/BOP, serta pejabat PA/TU/Bendahara untuk penandatanganan dokumen PDF.</small>
-      </div>
-      <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="reload()">Refresh</button>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <span class="badge badge-neutral rounded-pill px-3 py-2">
+        {{ auth.sekolahList().length }} Satuan Pendidikan
+      </span>
+      <button type="button" class="btn btn-sm btn-neutral rounded-pill px-3" (click)="reload()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      </button>
     </div>
 
-    <div class="row g-3">
-      <div class="col-lg-7">
-        <div class="siap-card">
-          <div class="table-responsive">
-            <table class="table table-siap table-hover">
-              <thead>
-                <tr>
-                  <th>NPSN &amp; Sekolah</th>
-                  <th>Wilayah Sudin</th>
-                  <th>Rekening BOS / BOP</th>
-                  <th>Kepala Sekolah &amp; Bendahara</th>
-                  <th class="text-end">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (s of auth.sekolahList(); track s.id) {
-                  <tr>
-                    <td>
-                      <div class="fw-bold">{{ s.namaSekolah }}</div>
-                      <small class="text-muted">NPSN {{ s.npsn }} · {{ s.jenjang }}</small>
-                    </td>
-                    <td class="small">{{ s.namaSudin }}</td>
-                    <td class="small">
-                      <div>BOS: <code>{{ s.noRekBos }}</code></div>
-                      <div>BOP: <code>{{ s.noRekBop }}</code></div>
-                    </td>
-                    <td class="small">
-                      <div>PA: {{ s.namaKepalaSekolah }}</div>
-                      <div class="text-muted">PK: {{ s.namaBendahara }}</div>
-                    </td>
-                    <td class="text-end">
-                      <button class="btn btn-sm btn-outline-primary py-0 px-2" (click)="editSekolah(s)">Edit</button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <div class="siap-card overflow-hidden">
+      <div class="table-responsive">
+        <table class="table table-siap table-hover w-100">
+          <thead>
+            <tr>
+              <th>NPSN &amp; Sekolah</th>
+              <th>Wilayah Sudin</th>
+              <th>Rekening BOS / BOP</th>
+              <th>Kepala Sekolah &amp; Bendahara</th>
+              <th class="text-end">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of auth.sekolahList(); track s.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold text-dark">{{ s.namaSekolah }}</div>
+                  <small class="text-muted">NPSN {{ s.npsn }} · {{ s.jenjang }}</small>
+                </td>
+                <td class="text-secondary">{{ s.namaSudin }}</td>
+                <td>
+                  <div><small class="text-muted">BOS:</small> <code>{{ s.noRekBos }}</code></div>
+                  <div><small class="text-muted">BOP:</small> <code>{{ s.noRekBop }}</code></div>
+                </td>
+                <td>
+                  <div class="text-dark">PA: {{ s.namaKepalaSekolah }}</div>
+                  <small class="text-muted">PK: {{ s.namaBendahara }}</small>
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-neutral rounded-pill px-3" (click)="editSekolah(s)">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
+    </div>
 
-      <div class="col-lg-5">
-        @if (editing()) {
-          <div class="siap-card p-3">
-            <h6 class="fw-bold mb-3">Edit Profil: {{ editing()!.namaSekolah }}</h6>
-            <div class="row g-2">
+    @if (editing()) {
+      <div class="modal-backdrop-custom" (click)="editing.set(null)">
+        <div class="modal-dialog-custom" style="max-width: 560px;" (click)="$event.stopPropagation()">
+          <div class="siap-card-header d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0">Edit Profil: {{ editing()!.namaSekolah }}</h6>
+            <button type="button" class="btn-close btn-sm" (click)="editing.set(null)"></button>
+          </div>
+          <div class="modal-body-scroll">
+            <div class="row g-3">
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">Nama Sekolah</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaSekolah">
+                <input class="form-control" [(ngModel)]="editing()!.namaSekolah">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">Kepala Sekolah (PA)</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaKepalaSekolah">
+                <input class="form-control" [(ngModel)]="editing()!.namaKepalaSekolah">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">NRK PA</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.nrkKepalaSekolah">
+                <input class="form-control" [(ngModel)]="editing()!.nrkKepalaSekolah">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">Verifikator TU</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaKasubagTu">
+                <input class="form-control" [(ngModel)]="editing()!.namaKasubagTu">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">Bendahara (PK)</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.namaBendahara">
+                <input class="form-control" [(ngModel)]="editing()!.namaBendahara">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">No. Rek BOS</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.noRekBos">
+                <input class="form-control" [(ngModel)]="editing()!.noRekBos">
               </div>
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">No. Rek BOP</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.noRekBop">
+                <input class="form-control" [(ngModel)]="editing()!.noRekBop">
               </div>
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">NPWP Sekolah</label>
-                <input class="form-control form-control-sm" [(ngModel)]="editing()!.npwpSekolah">
+                <input class="form-control" [(ngModel)]="editing()!.npwpSekolah">
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2 mt-3">
-              <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="editing.set(null)">Batal</button>
-              <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="save()">Simpan Perubahan</button>
+            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
+              <button type="button" class="btn btn-neutral rounded-pill px-4" (click)="editing.set(null)">Batal</button>
+              <button type="button" class="btn btn-siap rounded-pill px-4" (click)="save()">Simpan Perubahan</button>
             </div>
           </div>
-        } @else {
-          <div class="siap-card p-4 text-center text-muted">
-            <i class="bi bi-building-gear fs-1 d-block mb-2 text-warning"></i>
-            Pilih tombol <strong>Edit</strong> pada salah satu sekolah di sebelah kiri untuk memperbarui profil dan pejabat sekolah.
-          </div>
-        }
+        </div>
       </div>
-    </div>
+    }
   `
 })
 export class SekolahMgmtComponent implements OnInit {
@@ -425,12 +455,11 @@ export class SekolahMgmtComponent implements OnInit {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="row g-3">
+    <div class="row g-4">
       <div class="col-lg-5">
         <div class="siap-card h-100">
           <div class="siap-card-header">
-            <h6 class="fw-bold mb-0"><i class="bi bi-shield-lock text-warning me-2"></i>Daftar Role Otoritas (RBAC)</h6>
-            <small class="text-muted">Hierarki kewenangan dari Sekolah, Suku Dinas, hingga Dinas Pendidikan.</small>
+            <h6 class="fw-bold mb-0 text-dark">Daftar Role Otoritas (RBAC)</h6>
           </div>
           <div class="table-responsive">
             <table class="table table-siap">
@@ -444,10 +473,10 @@ export class SekolahMgmtComponent implements OnInit {
               <tbody>
                 @for (r of roles(); track r.id) {
                   <tr>
-                    <td><span class="badge text-bg-warning text-dark">{{ r.roleCode }}</span></td>
-                    <td><span class="badge bg-light text-dark border">{{ r.level }}</span></td>
+                    <td><span class="badge badge-role rounded-pill px-2 py-1">{{ r.roleCode }}</span></td>
+                    <td><span class="badge badge-neutral rounded-pill">{{ r.level }}</span></td>
                     <td>
-                      <div class="fw-semibold">{{ r.roleName }}</div>
+                      <div class="fw-semibold text-dark">{{ r.roleName }}</div>
                       <small class="text-muted">{{ r.deskripsi }}</small>
                     </td>
                   </tr>
@@ -460,11 +489,11 @@ export class SekolahMgmtComponent implements OnInit {
 
       <div class="col-lg-7">
         <div class="siap-card h-100">
-          <div class="siap-card-header">
-            <h6 class="fw-bold mb-0"><i class="bi bi-diagram-2 text-warning me-2"></i>Matriks Hak Akses Modul &amp; Menu Aplikasi</h6>
-            <small class="text-muted">Setiap menu disaring dinamis saat login berdasarkan claim JWT <code>roleCode</code>.</small>
+          <div class="siap-card-header d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-dark">Matriks Hak Akses Modul &amp; Menu</h6>
+            <span class="badge badge-neutral rounded-pill">{{ menus().length }} Sub-Menu</span>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive" style="max-height: 620px; overflow-y: auto;">
             <table class="table table-siap table-hover">
               <thead>
                 <tr>
@@ -477,10 +506,12 @@ export class SekolahMgmtComponent implements OnInit {
               <tbody>
                 @for (m of menus(); track m.id) {
                   <tr>
-                    <td><span class="badge bg-secondary-subtle text-dark">{{ m.kodeAplikasi }}</span></td>
-                    <td class="fw-semibold"><i class="bi {{ m.icon }} me-1 text-warning"></i>{{ m.nama }}</td>
-                    <td><code class="small">{{ m.link }}</code></td>
-                    <td class="small">{{ m.allowedRolesCsv }}</td>
+                    <td><span class="badge badge-neutral rounded-pill">{{ m.kodeAplikasi }}</span></td>
+                    <td class="fw-medium text-dark">
+                      <i class="bi {{ m.icon }} me-2 text-secondary"></i>{{ m.nama }}
+                    </td>
+                    <td><code class="small text-secondary">{{ m.link }}</code></td>
+                    <td class="small text-muted">{{ m.allowedRolesCsv }}</td>
                   </tr>
                 }
               </tbody>
@@ -503,19 +534,18 @@ export class OtoritasMgmtComponent implements OnInit {
 }
 
 // =========================================================================
-// 4. MASTER PAJAK (PPh 21, 22, 23, Pasal 4(2), PPN) & BAGAN AKUN STANDAR
+// 4. MASTER PAJAK & BAGAN AKUN STANDAR
 // =========================================================================
 @Component({
   selector: 'app-pajak-mgmt',
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="row g-3">
+    <div class="row g-4">
       <div class="col-lg-6">
         <div class="siap-card h-100">
           <div class="siap-card-header">
-            <h6 class="fw-bold mb-0"><i class="bi bi-percent text-warning me-2"></i>Master Pajak MPN G3 (siap.trpotspm)</h6>
-            <small class="text-muted">Tarif Pajak PPh 21, 22, 23, Pasal 4(2) &amp; PPN 11% untuk pemotongan SPJ BOSP &amp; BOP.</small>
+            <h6 class="fw-bold mb-0 text-dark">Master Pajak MPN G3</h6>
           </div>
           <div class="table-responsive">
             <table class="table table-siap table-hover mb-0">
@@ -530,13 +560,13 @@ export class OtoritasMgmtComponent implements OnInit {
               <tbody>
                 @for (t of taxes(); track t.id) {
                   <tr>
-                    <td><span class="badge text-bg-warning text-dark">{{ t.kodeTrxPajak }}</span></td>
+                    <td><span class="badge badge-role rounded-pill">{{ t.kodeTrxPajak }}</span></td>
                     <td>
-                      <div class="fw-semibold">{{ t.namaPajak }}</div>
+                      <div class="fw-semibold text-dark">{{ t.namaPajak }}</div>
                       <small class="text-muted">{{ t.keterangan }}</small>
                     </td>
                     <td><code>{{ t.kodeMap }} / {{ t.kodeJenisSetoran }}</code></td>
-                    <td class="text-end fw-bold">{{ t.tarifPersen }}%</td>
+                    <td class="text-end fw-bold text-dark">{{ t.tarifPersen }}%</td>
                   </tr>
                 }
               </tbody>
@@ -548,8 +578,7 @@ export class OtoritasMgmtComponent implements OnInit {
       <div class="col-lg-6">
         <div class="siap-card h-100">
           <div class="siap-card-header">
-            <h6 class="fw-bold mb-0"><i class="bi bi-journal-code text-warning me-2"></i>Master Bagan Akun Standar (siap.trbas)</h6>
-            <small class="text-muted">Kode Rekening Belanja Barang, Jasa, Pemeliharaan &amp; Modal Satuan Pendidikan.</small>
+            <h6 class="fw-bold mb-0 text-dark">Master Bagan Akun Standar (BAS)</h6>
           </div>
           <div class="table-responsive">
             <table class="table table-siap table-hover mb-0">
@@ -564,8 +593,8 @@ export class OtoritasMgmtComponent implements OnInit {
                 @for (b of basList(); track b.id) {
                   <tr>
                     <td><code>{{ b.kodeAkun }}</code></td>
-                    <td class="fw-semibold">{{ b.namaAkun }}</td>
-                    <td><span class="badge bg-light text-dark border">{{ b.kelompok }}</span></td>
+                    <td class="fw-medium text-dark">{{ b.namaAkun }}</td>
+                    <td><span class="badge badge-neutral rounded-pill">{{ b.kelompok }}</span></td>
                   </tr>
                 }
               </tbody>
