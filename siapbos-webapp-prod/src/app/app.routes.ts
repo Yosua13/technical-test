@@ -82,14 +82,14 @@ export const routes: Routes = [
         path: 'user-management',
         children: [
           { path: '', redirectTo: 'pengguna', pathMatch: 'full' },
-          { path: 'pengguna', component: PenggunaMgmtComponent, data: { title: 'Pengguna & Sinkronisasi SIMPEG' } },
-          { path: 'otoritas', component: OtoritasMgmtComponent, data: { title: 'Master Otoritas (RBAC)' } },
-          { path: 'aplikasi', component: OtoritasMgmtComponent, data: { title: 'Master Aplikasi (5 Menu Utama)' } },
-          { path: 'menu', component: OtoritasMgmtComponent, data: { title: 'Master Sub-Menu Aplikasi' } },
-          { path: 'periode', component: BatasPengajuanComponent, data: { title: 'Master Periode Anggaran' } },
-          { path: 'master-sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening' } },
-          { path: 'sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening' } },
-          { path: 'pajak', component: PajakMgmtComponent, data: { title: 'Master Pajak & Bagan Akun Standar' } }
+          { path: 'pengguna', component: PenggunaMgmtComponent, data: { title: 'Manajemen Pengguna', desc: 'Kelola akun pengelola BOS/BOP dan sinkronisasi pegawai SIMPEG berdasarkan NRK.' } },
+          { path: 'otoritas', component: OtoritasMgmtComponent, data: { title: 'Master Otoritas (RBAC)', desc: 'Hierarki kewenangan role dan matriks hak akses sub-menu.' } },
+          { path: 'aplikasi', component: OtoritasMgmtComponent, data: { title: 'Master Aplikasi', desc: 'Daftar 5 modul utama beserta otorisasi role yang diizinkan.' } },
+          { path: 'menu', component: OtoritasMgmtComponent, data: { title: 'Master Sub-Menu Aplikasi', desc: 'Pengaturan tautan rute dan ikon tiap sub-menu modul.' } },
+          { path: 'periode', component: BatasPengajuanComponent, data: { title: 'Master Periode Anggaran', desc: 'Pengaturan batas pengajuan belanja dan status aktif tiap periode.' } },
+          { path: 'master-sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening', desc: 'Kelola profil satuan pendidikan, nomor rekening BOS/BOP, serta pejabat penandatangan.' } },
+          { path: 'sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening', desc: 'Kelola profil satuan pendidikan, nomor rekening BOS/BOP, serta pejabat penandatangan.' } },
+          { path: 'pajak', component: PajakMgmtComponent, data: { title: 'Master Pajak & BAS', desc: 'Daftar tarif pemotongan pajak MPN G3 serta Bagan Akun Standar (BAS).' } }
         ]
       },
 
