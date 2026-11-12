@@ -97,7 +97,7 @@ export class AuthService {
     if (!sub) return app.menu.length > 0;
     if (app.menu.some((m) => m.link === sub)) return true;
 
-    // Izinkan akses Lihat Detail BKU / Batal Transfer SPJ bagi user dengan menu pengajuan, persetujuan, pembayaran, atau batal transfer
+    // Izinkan akses Lihat Detail BKU bagi user dengan menu pengajuan, persetujuan, atau pembayaran
     const actionSegment = parts[2] ?? '';
     if (sub === 'input-bku' && actionSegment === 'detail') {
       const detailAllowedMenus = [
@@ -109,14 +109,18 @@ export class AuthService {
         'permohonan-token',
         'pembayaran-bku',
         'pembayaran-pajak-bku',
-        'pembayaran-pajak-bop',
-        'batal-transfer-spj',
-        'persetujuan-batal-tf-spj'
+        'pembayaran-pajak-bop'
       ];
       if (app.menu.some((m) => detailAllowedMenus.includes(m.link))) return true;
     }
-    if (sub === 'batal-transfer-spj' && actionSegment === 'detail') {
-      if (app.menu.some((m) => m.link === 'batal-transfer-spj' || m.link === 'persetujuan-batal-tf-spj')) return true;
+
+    if (actionSegment === 'detail') {
+      if (['npd-bop', 'konfirmasi-drop-dana-bop', 'pengajuan-npd', 'persetujuan-npd'].includes(sub)) {
+        if (app.menu.some((m) => ['konfirmasi-drop-dana-bop', 'pengajuan-npd', 'persetujuan-npd'].includes(m.link))) return true;
+      }
+      if (['konfirmasi-dana', 'konfirmasi-drop-dana', 'dinas-konfirmasi-drop-dana'].includes(sub)) {
+        if (app.menu.some((m) => ['konfirmasi-drop-dana', 'dinas-konfirmasi-drop-dana'].includes(m.link))) return true;
+      }
     }
 
     // Allow alias dashboard/route mappings when base module menu exists in DB

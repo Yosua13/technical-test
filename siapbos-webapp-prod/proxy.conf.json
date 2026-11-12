@@ -1,6 +1,6 @@
 {
   "/auth-server": {
-    "target": "http://localhost:5001",
+    "target": "http://127.0.0.1:5001",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {
@@ -8,17 +8,17 @@
     }
   },
   "/api-bop": {
-    "target": "http://localhost:5003",
+    "target": "http://127.0.0.1:5003",
     "secure": false,
     "changeOrigin": true
   },
   "/api": {
-    "target": "http://localhost:5002",
+    "target": "http://127.0.0.1:5002",
     "secure": false,
     "changeOrigin": true
   },
   "/integration-server": {
-    "target": "http://localhost:5004",
+    "target": "http://127.0.0.1:5004",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {
@@ -26,7 +26,7 @@
     }
   },
   "/report-server": {
-    "target": "http://localhost:5005",
+    "target": "http://127.0.0.1:5005",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {
@@ -34,7 +34,7 @@
     }
   },
   "/uploader": {
-    "target": "http://localhost:5006",
+    "target": "http://127.0.0.1:5006",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {
@@ -42,7 +42,7 @@
     }
   },
   "/file-uploader": {
-    "target": "http://localhost:5006",
+    "target": "http://127.0.0.1:5006",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {

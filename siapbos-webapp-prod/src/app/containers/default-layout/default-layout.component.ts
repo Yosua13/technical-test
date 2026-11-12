@@ -10,7 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <div class="d-flex flex-column min-vh-100" style="background: var(--siap-bg);" (click)="closePopovers()">
+    <div class="d-flex flex-column min-vh-100 siap-shell" style="background: var(--siap-bg);" (click)="closePopovers()">
       <!-- ORANGE TOP NAVBAR (Logo Left | Menu Search Center | Notifications & User Profile Right) -->
       <header class="siap-topbar sticky-top">
         <div class="container-fluid d-flex align-items-center justify-content-between gap-3 px-3 px-lg-4" style="height: 62px;">
@@ -193,7 +193,7 @@ import { AuthService } from '../../core/services/auth.service';
       }
 
       <!-- WORKSPACE SPLIT SHELL -->
-      <div class="d-flex flex-grow-1 position-relative">
+      <div class="d-flex flex-grow-1 position-relative siap-workspace">
         <!-- COLLAPSIBLE LEFT SIDEBAR: ALL 5 MAIN MODULES IN ONE ACCORDION TREE -->
         <aside class="siap-sidebar flex-shrink-0"
                [class.collapsed]="sidebarCollapsed()"
@@ -268,7 +268,7 @@ import { AuthService } from '../../core/services/auth.service';
         </aside>
 
         <!-- MAIN CONTENT WORKSPACE -->
-        <main class="flex-grow-1 d-flex flex-column min-w-0" style="overflow-x: clip;">
+        <main class="d-flex flex-column siap-main">
           <div class="container-fluid px-3 px-lg-4 py-4 flex-grow-1">
             <!-- SINGLE UNIFIED DECLUTTERED PAGE HEADER -->
             <div class="mb-4">
@@ -343,11 +343,31 @@ import { AuthService } from '../../core/services/auth.service';
     </div>
   `,
   styles: [`
+    .siap-shell {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: clip;
+    }
+    .siap-workspace {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .siap-main {
+      flex: 1 1 0%;
+      width: 0;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: clip;
+    }
     .siap-topbar {
       background: linear-gradient(90deg, #FF9A00 0%, #F97316 100%);
       border-bottom: 1px solid rgba(255, 255, 255, 0.22);
       box-shadow: 0 4px 14px rgba(249, 115, 22, 0.22);
       z-index: 1030;
+      left: 0;
+      width: 100%;
     }
     .topbar-logo-wrap {
       display: inline-flex;
@@ -405,6 +425,8 @@ import { AuthService } from '../../core/services/auth.service';
       max-height: calc(100vh - 63px);
       position: sticky;
       top: 63px;
+      left: 0;
+      align-self: flex-start;
       overflow: hidden;
       transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
     }

@@ -5,16 +5,15 @@ import {
   ApiResponse,
   BankMutation,
   BapKasReport,
-  BatalTransferSpj,
   BkuSummarySaldo,
   BkuTaxItem,
   BkuTransaction,
   DroppingDana,
   NpdBop,
   RkasItem,
-  SaveBatalTransferRequest,
   Sekolah,
-  SetoranSts
+  SetoranSts,
+  VaTransferResponse
 } from '../models/siapbos.models';
 
 @Injectable({ providedIn: 'root' })
@@ -58,8 +57,40 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<Sekolah>>(`/api/sekolah/${sekolahId}/konfirmasi-rekening`, payload);
   }
 
-  getDroppingSekolah(sekolahId: number, tahun: number, sumberDana: string): Observable<ApiResponse<DroppingDana[]>> {
-    return this.http.get<ApiResponse<DroppingDana[]>>(`${this.prefix(sumberDana)}/konfirmasi-dana`, { params: { sekolahId, tahun } });
+  getMigrasiCandidatesDropping(sekolahId: number, tahun: number, sumberDana: string): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>(`${this.prefix(sumberDana)}/migrasi-candidates`, { params: { sekolahId, tahun } });
+  }
+
+  getDroppingSekolah(sekolahId: number, tahun: number, sumberDana: string, filters?: { kodePeriode?: string; status?: number | null; search?: string }): Observable<ApiResponse<DroppingDana[]>> {
+    const params: any = { sekolahId, tahun };
+    if (filters?.kodePeriode) params.kodePeriode = filters.kodePeriode;
+    if (filters?.status !== undefined && filters?.status !== null) params.status = filters.status;
+    if (filters?.search) params.search = filters.search;
+    return this.http.get<ApiResponse<DroppingDana[]>>(`${this.prefix(sumberDana)}/konfirmasi-dana`, { params });
+  }
+
+  getDroppingDetail(droppingId: number, sumberDana: string): Observable<ApiResponse<DroppingDana>> {
+    return this.http.get<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana/${droppingId}`);
+  }
+
+  createDroppingFromMigrasi(sumberDana: string, payload: { sekolahId: number; migrasiPaskId: number; tanggalDropping?: string; keterangan: string }): Observable<ApiResponse<DroppingDana>> {
+    return this.http.post<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana`, payload);
+  }
+
+  ajukanDropping(droppingId: number, sumberDana: string): Observable<ApiResponse<DroppingDana>> {
+    return this.http.post<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana/${droppingId}/ajukan`, {});
+  }
+
+  approveDroppingTu(droppingId: number, sumberDana: string, disetujui: boolean, catatan?: string): Observable<ApiResponse<DroppingDana>> {
+    return this.http.post<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana/${droppingId}/approve-tu`, { disetujui, catatan });
+  }
+
+  approveDroppingPa(droppingId: number, sumberDana: string, disetujui: boolean, catatan?: string): Observable<ApiResponse<DroppingDana>> {
+    return this.http.post<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana/${droppingId}/approve-pa`, { disetujui, catatan });
+  }
+
+  approveDroppingDinas(droppingId: number, sumberDana: string, disetujui: boolean, catatan?: string): Observable<ApiResponse<DroppingDana>> {
+    return this.http.post<ApiResponse<DroppingDana>>(`${this.prefix(sumberDana)}/konfirmasi-dana/${droppingId}/approve-dinas`, { disetujui, catatan });
   }
 
   confirmDropping(droppingId: number, sumberDana: string): Observable<ApiResponse<DroppingDana>> {
@@ -84,6 +115,18 @@ export class SiapBosApiService {
     if (kodeTrx) params.kodeTrx = kodeTrx;
     if (statusBku !== undefined && statusBku !== null) params.statusBku = statusBku;
     return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/input-spj`, { params });
+  }
+
+  getDraftSpjCandidates(sekolahId: number, tahun: number, sumberDana: string, search?: string): Observable<ApiResponse<BkuTransaction[]>> {
+    const params: any = { sekolahId, tahun };
+    if (search) params.search = search;
+    return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/input-spj/draft-spj-candidates`, { params });
+  }
+
+  getPenerimaanPajakCandidates(sekolahId: number, tahun: number, sumberDana: string, search?: string): Observable<ApiResponse<BkuTransaction[]>> {
+    const params: any = { sekolahId, tahun };
+    if (search) params.search = search;
+    return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/input-spj/penerimaan-pajak-candidates`, { params });
   }
 
   getBkuDetail(sumberDana: string, bkuId: number): Observable<ApiResponse<BkuTransaction>> {
@@ -127,6 +170,10 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<any>>(`${this.prefix(sumberDana)}/pembayaran/transfer`, { bkuId, tokenOtp });
   }
 
+  vaTransferSpj(sumberDana: string, bkuId: number): Observable<ApiResponse<VaTransferResponse>> {
+    return this.http.post<ApiResponse<VaTransferResponse>>(`${this.prefix(sumberDana)}/pembayaran/va-transfer`, { bkuId });
+  }
+
   processTaxAction(sumberDana: string, taxId: number, action: 'create' | 'reset' | 'inquiry' | 'payment'): Observable<ApiResponse<BkuTaxItem>> {
     return this.http.post<ApiResponse<BkuTaxItem>>(`${this.prefix(sumberDana)}/pembayaran/pajak/${taxId}/${action}`, {});
   }
@@ -142,6 +189,19 @@ export class SiapBosApiService {
 
   inquiryNpwp(nomorNpwp: string): Observable<ApiResponse<any>> {
     return this.http.get<ApiResponse<any>>('/integration-server/api/npwp/byNomorNpwp', { params: { nomorNpwp } });
+  }
+
+  inquiryPajak(payload: {
+    kodeTrx: string;
+    masaPajak: string;
+    tahunPajak: number;
+    brutoSpj?: number;
+    dasarPengenaanPajak?: number;
+    tarifPersen?: number;
+    npwp?: string;
+    namaWajibPajak?: string;
+  }): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>('/integration-server/api/pajak/inquiry', payload);
   }
 
   cekPegawaiSimpeg(nrk: string): Observable<ApiResponse<any>> {
@@ -175,10 +235,6 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<BapKasReport>>(`${this.prefix(sumberDana)}/penutupan/tutup-buku`, { sekolahId, tahunAnggaran: tahun, sumberDana, kodePeriode });
   }
 
-  batalTutupBuku(sumberDana: string, sekolahId: number, tahun: number, kodePeriode: string): Observable<ApiResponse<BapKasReport>> {
-    return this.http.post<ApiResponse<BapKasReport>>(`${this.prefix(sumberDana)}/penutupan/batal-tutup-buku`, { sekolahId, tahunAnggaran: tahun, sumberDana, kodePeriode });
-  }
-
   getSts(sumberDana: string, sekolahId: number, tahun: number): Observable<ApiResponse<SetoranSts[]>> {
     return this.http.get<ApiResponse<SetoranSts[]>>(`${this.prefix(sumberDana)}/penutupan/setoran-sts`, { params: { sekolahId, tahun } });
   }
@@ -191,17 +247,33 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<SetoranSts>>(`${this.prefix(sumberDana)}/penutupan/setoran-sts/${stsId}/process/${targetStatus}`, {});
   }
 
-  // BOP Specific (NPD & Koreksi)
-  getNpdBop(sekolahId: number, tahun: number): Observable<ApiResponse<NpdBop[]>> {
-    return this.http.get<ApiResponse<NpdBop[]>>('/api-bop/npd', { params: { sekolahId, tahun } });
+  // BOP Specific (Permohonan NPD dari Migrasi ADM -> 4-Stage Approval -> SIPKD & Auto-Cair)
+  getNpdPaskCandidates(sekolahId: number, tahun: number): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>('/api-bop/npd/pask-candidates', { params: { sekolahId, tahun } });
   }
 
-  createNpdBop(payload: any): Observable<ApiResponse<NpdBop>> {
+  getNpdBop(sekolahId: number, tahun: number, filters?: { kodePeriode?: string; status?: number | null; search?: string }): Observable<ApiResponse<NpdBop[]>> {
+    const params: any = { sekolahId, tahun };
+    if (filters?.kodePeriode) params.kodePeriode = filters.kodePeriode;
+    if (filters?.status !== undefined && filters?.status !== null) params.status = filters.status;
+    if (filters?.search) params.search = filters.search;
+    return this.http.get<ApiResponse<NpdBop[]>>('/api-bop/npd', { params });
+  }
+
+  getNpdDetail(id: number): Observable<ApiResponse<NpdBop>> {
+    return this.http.get<ApiResponse<NpdBop>>(`/api-bop/npd/${id}`);
+  }
+
+  createNpdBop(payload: { sekolahId: number; migrasiPaskId: number; tanggalNpd?: string; uraian: string }): Observable<ApiResponse<NpdBop>> {
     return this.http.post<ApiResponse<NpdBop>>('/api-bop/npd', payload);
   }
 
   ajukanNpdBop(id: number): Observable<ApiResponse<NpdBop>> {
     return this.http.post<ApiResponse<NpdBop>>(`/api-bop/npd/${id}/ajukan`, {});
+  }
+
+  approveNpdTu(id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<NpdBop>> {
+    return this.http.post<ApiResponse<NpdBop>>(`/api-bop/npd/${id}/approve-tu`, { disetujui, catatan });
   }
 
   approveNpdPa(id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<NpdBop>> {
@@ -212,63 +284,8 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<any>>(`/api-bop/npd/${id}/approve-sudin`, { disetujui, catatan });
   }
 
-  // Batal Transfer SPJ (BOS & BOP - 4-Stage Approval: PK -> TU -> PA -> SUDIN)
-  getBatalTransferCandidates(
-    sumberDana: string,
-    sekolahId: number,
-    tahun: number,
-    filters?: { noMohon?: string; noBukti?: string; kegiatan?: string }
-  ): Observable<ApiResponse<BkuTransaction[]>> {
-    const params: any = { sekolahId, tahun };
-    if (filters?.noMohon) params.noMohon = filters.noMohon;
-    if (filters?.noBukti) params.noBukti = filters.noBukti;
-    if (filters?.kegiatan) params.kegiatan = filters.kegiatan;
-    return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/batal-transfer/spj-candidates`, { params });
-  }
-
-  getBatalTransfers(
-    sumberDana: string,
-    sekolahId: number,
-    tahun: number,
-    filters?: { kodePeriode?: string; status?: number | null; nomorBkuMohon?: string }
-  ): Observable<ApiResponse<BatalTransferSpj[]>> {
-    const params: any = { sekolahId, tahun };
-    if (filters?.kodePeriode) params.kodePeriode = filters.kodePeriode;
-    if (filters?.status !== undefined && filters?.status !== null) params.status = filters.status;
-    if (filters?.nomorBkuMohon) params.nomorBkuMohon = filters.nomorBkuMohon;
-    return this.http.get<ApiResponse<BatalTransferSpj[]>>(`${this.prefix(sumberDana)}/batal-transfer`, { params });
-  }
-
-  getBatalTransferDetail(sumberDana: string, id: number): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.get<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`);
-  }
-
-  createBatalTransfer(sumberDana: string, payload: SaveBatalTransferRequest): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer`, payload);
-  }
-
-  updateBatalTransfer(sumberDana: string, id: number, payload: SaveBatalTransferRequest): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.put<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`, payload);
-  }
-
-  deleteBatalTransfer(sumberDana: string, id: number): Observable<ApiResponse<string>> {
-    return this.http.delete<ApiResponse<string>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`);
-  }
-
-  ajukanBatalTransferPk(sumberDana: string, id: number, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/ajukan-pk`, { disetujui: true, catatan });
-  }
-
-  approveBatalTransferTu(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-tu`, { disetujui, catatan });
-  }
-
-  approveBatalTransferPa(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-pa`, { disetujui, catatan });
-  }
-
-  approveBatalTransferSudin(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
-    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-sudin`, { disetujui, catatan });
+  getNpdPdfBlob(id: number): Observable<Blob> {
+    return this.http.get(`/report-server/pdf/npd/${id}`, { responseType: 'blob' });
   }
 
   // Report PDF Blob Downloads (for inline PDF viewer / download)
@@ -456,12 +473,25 @@ export class SiapBosApiService {
   uploadInvoicePdf(file: File): Observable<ApiResponse<any>> {
     const fd = new FormData();
     fd.append('file', file);
-    return this.http.post<ApiResponse<any>>('/uploader/api/v1/minio/upload', fd);
+    return this.http.post<ApiResponse<any>>('/uploader/api/v1/files/upload', fd);
   }
 
   uploadRkasExcel(file: File): Observable<ApiResponse<any>> {
     const fd = new FormData();
     fd.append('file', file);
     return this.http.post<ApiResponse<any>>('/file-uploader/api/file-uploader/upload-rkas', fd);
+  }
+
+  uploadMigrasiDanaExcel(file: File): Observable<ApiResponse<any>> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.http.post<ApiResponse<any>>('/file-uploader/api/file-uploader/upload-migrasi-dana', fd);
+  }
+
+  getAdminMigrasiDana(tahun: number, sekolahId?: number, sumberDana?: string): Observable<ApiResponse<any[]>> {
+    const params: any = { tahun };
+    if (sekolahId) params.sekolahId = sekolahId;
+    if (sumberDana) params.sumberDana = sumberDana;
+    return this.http.get<ApiResponse<any[]>>('/api/migrasi-dana', { params });
   }
 }

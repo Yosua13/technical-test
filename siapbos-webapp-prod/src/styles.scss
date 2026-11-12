@@ -78,11 +78,9 @@ body {
 @keyframes pageReveal {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -136,7 +134,9 @@ body {
 }
 
 .animate-page {
-  animation: pageReveal 0.34s var(--siap-ease-out) both;
+  animation: pageReveal 0.25s var(--siap-ease-out);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .animate-stagger {
@@ -213,6 +213,8 @@ body {
   background: var(--siap-surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.02);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .siap-card-interactive:hover {
@@ -312,31 +314,75 @@ body {
 .modal-backdrop-custom {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(5px);
   z-index: 1050;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  animation: backdropFade 0.2s ease both;
+  padding: 1.25rem;
+  overflow-y: auto;
+  animation: backdropFade 0.18s ease both;
 }
 
 .modal-dialog-custom {
-  background: #fff;
-  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
   width: 100%;
-  max-height: 92vh;
+  max-height: calc(100dvh - 2.5rem);
+  margin: auto;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.24);
+  box-shadow: 0 28px 64px -12px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
   overflow: hidden;
-  animation: modalPop 0.24s var(--siap-ease-spring) both;
+  animation: modalPop 0.22s var(--siap-ease-spring) both;
+}
+
+.modal-dialog-custom > .siap-card-header,
+.modal-dialog-custom > .modal-header-clean {
+  flex-shrink: 0;
+  padding: 1rem 1.35rem;
+  background: linear-gradient(180deg, #fffaf3 0%, #ffffff 100%);
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .modal-body-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  padding: 1.35rem;
+  padding: 1.25rem 1.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.modal-footer-custom {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1.35rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.modal-dialog-custom .form-label {
+  color: #334155;
+  font-size: 0.8125rem;
+}
+
+.modal-dialog-custom .form-control,
+.modal-dialog-custom .form-select {
+  border-color: #cbd5e1;
+  border-radius: 8px;
+}
+
+.modal-dialog-custom .form-control:focus,
+.modal-dialog-custom .form-select:focus {
+  border-color: var(--siap-orange);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
 }
 
 .toast-animated {

@@ -1,3 +1,20 @@
+export function normalizeUtcIso(value?: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (!s) return '';
+  // Treat ISO timestamps without an explicit Z / timezone offset as UTC (matching backend DateTime.UtcNow).
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+    return `${s}Z`;
+  }
+  return s;
+}
+
+export function parseUtcTimestampMs(value?: string | null): number {
+  const iso = normalizeUtcIso(value);
+  if (!iso) return NaN;
+  return new Date(iso).getTime();
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -142,19 +159,34 @@ export interface BkuTransaction {
   tanggalTransaksi: string;
   kodeTrx: 'JO' | 'JJ' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | string;
   jenisPembayaran: string;
+  caraPembayaran?: string;
+  isVirtualAccount?: boolean;
+  parentBkuId?: number | null;
+  parentNomorBku?: string | null;
+  nomorArsip?: string;
+  namaBidang?: string;
+  namaSnp?: string;
+  masaPajak?: string;
+  tahunPajak?: number | null;
+  tarifPersen?: number | null;
+  dasarPengenaanPajak?: number | null;
   uraian: string;
   nilaiBrutoMasuk: number;
   nilaiBrutoKeluar: number;
   totalPotonganPajak: number;
   nilaiNettoTransfer: number;
   namaRekanan: string;
+  alamatRekanan?: string;
   kodeBankRekanan: string;
   namaBankRekanan: string;
   noRekRekanan: string;
   namaPemilikRekRekanan: string;
   npwpRekanan: string;
   namaWpRekanan: string;
+  alamatWpRekanan?: string;
   noVaAtauPesanan?: string;
+  stanVa?: string;
+  kodeReffVa?: string;
   fileLampiranName?: string;
   fileLampiranPath?: string;
   statusBku: number; // 0 Draft, 1 DiajukanTU, 2 DisetujuiTU, 3 DisetujuiPA, 4 DisetujuiSudin, 5 Lunas, 9 Ditolak
@@ -199,6 +231,42 @@ export interface RkasItem {
   totalRealisasi: number;
 }
 
+export interface MigrasiPaskRinci {
+  id: number;
+  migrasiPaskId: number;
+  kodeKegiatan: string;
+  namaKegiatan: string;
+  kodeRekening: string;
+  namaRekening: string;
+  anggaran: number;
+  akbPerPeriode: number;
+  nilaiSebelum: number;
+  nilaiNpd: number;
+}
+
+export interface MigrasiPask {
+  id: number;
+  batchKode: string;
+  sekolahId: number;
+  sekolah?: Sekolah;
+  tahunAnggaran: number;
+  sumberDana: 'BOS' | 'BOP';
+  kodePeriode: string;
+  namaPeriode: string;
+  kodeSubgiat: string;
+  namaSubgiat: string;
+  namaPask: string;
+  program: string;
+  nomorDpaSkpd: string;
+  sumberDanaLabel: string;
+  totalDana: number;
+  importedBy: string;
+  importedAt: string;
+  fileName: string;
+  rincians: MigrasiPaskRinci[];
+  alreadyUsedInPeriode?: boolean;
+}
+
 export interface DroppingDana {
   id: number;
   sekolahId: number;
@@ -211,6 +279,19 @@ export interface DroppingDana {
   tanggalDropping: string;
   nilaiDropping: number;
   keterangan: string;
+  migrasiPaskId?: number | null;
+  migrasiPask?: MigrasiPask | null;
+  program?: string;
+  nomorDpaSkpd?: string;
+  kodeSubgiat?: string;
+  namaSubgiat?: string;
+  namaPask?: string;
+  statusDropping: number; // 0 Draft PK, 1 Menunggu TU, 2 Menunggu PA, 3 Menunggu Dinas/Sudin, 4 Cair, 9 Ditolak
+  catatan?: string;
+  createdBy?: string;
+  tuApprovedBy?: string;
+  paApprovedBy?: string;
+  dinasApprovedBy?: string;
   isConfirmedToBku: boolean;
   tanggalKonfirmasi?: string;
   bkuTransactionId?: number;
@@ -219,13 +300,26 @@ export interface DroppingDana {
 export interface NpdBop {
   id: number;
   sekolahId: number;
+  sekolah?: Sekolah;
   tahunAnggaran: number;
   kodePeriode: string;
   nomorNpd: string;
   tanggalNpd: string;
   uraian: string;
   nilaiPengajuan: number;
-  statusNpd: number; // 0 Draft, 1 Diajukan, 2 PA, 3 Sudin, 4 Terkirim SIPKD, 9 Tolak
+  statusNpd: number; // 0 Draft PK, 1 Menunggu TU, 2 Menunggu PA, 3 Menunggu Sudin, 4 Disetujui & Cair SIPKD, 9 Ditolak
+  migrasiPaskId?: number | null;
+  migrasiPask?: MigrasiPask | null;
+  program?: string;
+  nomorDpaSkpd?: string;
+  kodeSubgiat?: string;
+  namaSubgiat?: string;
+  namaPask?: string;
+  sumberDanaLabel?: string;
+  createdBy?: string;
+  tuApprovedBy?: string;
+  paApprovedBy?: string;
+  sudinApprovedBy?: string;
   nomorSipkd?: string;
   tanggalKirimSipkd?: string;
   catatan?: string;
@@ -284,53 +378,24 @@ export interface SetoranSts {
   statusSts: number;
 }
 
-export interface BatalTransferSpj {
-  id: number;
-  bkuTransactionId: number;
-  bkuTransaction?: BkuTransaction;
-  sekolahId: number;
-  sekolah?: Sekolah;
-  tahunAnggaran: number;
-  sumberDana: string;
-  jenisPeriode: string;
-  kodePeriode: string;
-  nomorBeritaAcara: string;
-  tanggalPembatalan: string;
-  nomorBkuMohon: string;
-  nilaiSpjBatal: number;
-  nrkPengkoreksi: string;
-  namaPengkoreksi: string;
-  fileBeritaAcaraName?: string;
-  fileBeritaAcaraPath?: string;
-  uraianBeritaAcara: string;
-  pajakTidakDikoreksi: boolean;
-  statusBatal: number; // 0 Draft PK, 1 Diajukan TU, 2 Disetujui TU, 3 Disetujui PA, 4 Disetujui Sudin, 9 Ditolak
-  catatanVerifikasi?: string;
-  submittedByPk?: string;
-  submittedByPkAt?: string;
-  approvedByTu?: string;
-  approvedByTuAt?: string;
-  approvedByPa?: string;
-  approvedByPaAt?: string;
-  approvedBySudin?: string;
-  approvedBySudinAt?: string;
-  createdBy: string;
-  createdAt: string;
+export interface VaStepTrace {
+  stepName: string;
+  endpoint: string;
+  responseCode: string;
+  stan?: string;
+  kodeReff?: string;
+  message: string;
+  timestamp: string;
 }
 
-export interface SaveBatalTransferRequest {
-  bkuTransactionId: number;
-  sekolahId: number;
-  tahunAnggaran: number;
-  sumberDana: string;
-  jenisPeriode: string;
-  kodePeriode: string;
-  nomorBeritaAcara: string;
-  tanggalPembatalan: string;
-  nrkPengkoreksi: string;
-  namaPengkoreksi: string;
-  fileBeritaAcaraName?: string;
-  fileBeritaAcaraPath?: string;
-  uraianBeritaAcara: string;
-  pajakTidakDikoreksi: boolean;
+export interface VaTransferResponse {
+  bit39: string;
+  message: string;
+  noJurnalBank: string;
+  stan: string;
+  kodeReff: string;
+  tanggalTransfer: string;
+  nominalDitransfer: number;
+  sisaSaldoSekolah: number;
+  steps: VaStepTrace[];
 }
