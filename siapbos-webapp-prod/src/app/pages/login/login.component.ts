@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -89,19 +89,32 @@ import { ToastService } from '../../core/services/toast.service';
                   <label class="form-label small fw-bold text-secondary">Kode Captcha</label>
                   <div class="row g-2 align-items-center">
                     <div class="col-7">
-                      <input type="text"
-                             class="form-control rounded-3 text-uppercase fw-semibold"
-                             [class.is-invalid]="form.controls.captchaInput.invalid && (form.controls.captchaInput.touched || submitted())"
-                             placeholder="Masukkan Kode Captcha"
-                             autocomplete="off"
-                             formControlName="captchaInput">
+                      <div class="captcha-input-wrap"
+                           [class.captcha-invalid]="captchaStatus() === 'invalid'"
+                           [class.captcha-valid]="captchaStatus() === 'valid'">
+                        <input type="text"
+                               class="form-control captcha-pill-input fw-semibold"
+                               placeholder="Masukkan Kode Captcha"
+                               autocomplete="off"
+                               formControlName="captchaInput"
+                               (input)="onCaptchaInput($event)">
+                        @if (captchaStatus() === 'invalid') {
+                          <span class="captcha-status-icon text-danger" title="Kode captcha belum sesuai">
+                            <i class="bi bi-x-lg"></i>
+                          </span>
+                        } @else if (captchaStatus() === 'valid') {
+                          <span class="captcha-status-icon text-success" title="Kode captcha sesuai">
+                            <i class="bi bi-check-lg"></i>
+                          </span>
+                        }
+                      </div>
                     </div>
                     <div class="col-5">
                       <button type="button"
-                              class="w-100 btn rounded-3 fw-bold fst-italic d-flex align-items-center justify-content-between px-3 captcha-box"
+                              class="w-100 btn rounded-pill fw-bold fst-italic d-flex align-items-center justify-content-center gap-2 px-3 captcha-box"
                               (click)="loadCaptcha()" title="Klik untuk memperbarui Captcha">
-                        <span style="letter-spacing: 4px;">{{ captchaCode() || '.....' }}</span>
-                        <i class="bi bi-arrow-clockwise"></i>
+                        <span class="user-select-none" style="letter-spacing: 3px;">{{ captchaCode() || '.....' }}</span>
+                        <i class="bi bi-arrow-clockwise small opacity-75"></i>
                       </button>
                     </div>
                   </div>
@@ -211,14 +224,58 @@ import { ToastService } from '../../core/services/toast.service';
     .logo-crest-dark img {
       filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
     }
+    .captcha-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1.5px solid #CBD5E1;
+      background: #FFFFFF;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .captcha-input-wrap:focus-within {
+      border-color: #94A3B8;
+      box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+    }
+    .captcha-input-wrap.captcha-invalid {
+      border-color: #F87171;
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22);
+    }
+    .captcha-input-wrap.captcha-valid {
+      border-color: #22C55E;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+    }
+    .captcha-pill-input {
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      border-radius: 999px;
+      height: 40px;
+      padding: 0 2.4rem 0 1.1rem;
+      font-size: 0.92rem;
+    }
+    .captcha-status-icon {
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      pointer-events: none;
+    }
     .captcha-box {
-      background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
-      color: #9A3412;
-      border: 2px dashed #FF9A00;
-      transition: transform 0.15s ease, background-color 0.2s ease;
+      height: 42px;
+      background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+      color: #FFFFFF;
+      border: none;
+      box-shadow: 0 3px 10px rgba(75, 85, 99, 0.22);
+      transition: transform 0.15s ease, filter 0.2s ease;
     }
     .captcha-box:hover {
-      background: #FFE0B2;
+      background: linear-gradient(135deg, #4B5563 0%, #374151 100%);
+      color: #FFFFFF;
       transform: translateY(-1px);
     }
   `]
@@ -231,6 +288,16 @@ export class LoginComponent implements OnInit {
 
   readonly captchaCode = signal('');
   readonly captchaToken = signal('');
+  readonly captchaTyped = signal('');
+  readonly captchaStatus = computed<'empty' | 'valid' | 'invalid'>(() => {
+    const typed = this.captchaTyped().trim();
+    const expected = this.captchaCode().trim();
+    if (!typed) {
+      return this.submitted() ? 'invalid' : 'empty';
+    }
+    if (!expected) return 'empty';
+    return typed.toUpperCase() === expected.toUpperCase() ? 'valid' : 'invalid';
+  });
   readonly availableYears = signal<any[]>([
     { tahun: 2026, label: '2026' },
     { tahun: 2025, label: '2025' },
@@ -268,12 +335,18 @@ export class LoginComponent implements OnInit {
     });
   }
 
+  onCaptchaInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value ?? '';
+    this.captchaTyped.set(value);
+  }
+
   loadCaptcha(): void {
     this.auth.getCaptcha().subscribe({
       next: (res) => {
         if (res.success && res.data) {
           this.captchaCode.set(res.data.captchaCode);
           this.captchaToken.set(res.data.captchaToken);
+          this.captchaTyped.set('');
           this.form.patchValue({ captchaInput: '' });
         }
       }

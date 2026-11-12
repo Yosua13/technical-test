@@ -1,4 +1,4 @@
-import { Component, HostListener, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -46,7 +46,7 @@ export interface PeraturanItem {
       min-height: 100vh;
       background-color: #f8fafc;
       color: #1f2937;
-      overflow-x: hidden;
+      overflow-x: clip;
     }
 
     /* Sticky Navbar (#FF9A00 palette preserved) */
@@ -460,6 +460,53 @@ export interface PeraturanItem {
     .footer-link:hover {
       color: #FF9A00;
     }
+
+    /* Modern Scroll-Reveal Animation */
+    .reveal-on-scroll {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      transition-delay: var(--reveal-delay, 0ms);
+      will-change: opacity, transform;
+    }
+    .reveal-on-scroll.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Floating Back-to-Top Button */
+    .btn-back-to-top {
+      position: fixed;
+      right: 26px;
+      bottom: 26px;
+      z-index: 1045;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      background: linear-gradient(135deg, #FF9A00 0%, #EA580C 100%);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 26px rgba(234, 88, 12, 0.38);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(18px) scale(0.86);
+      pointer-events: none;
+      transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.28s ease, box-shadow 0.2s ease;
+    }
+    .btn-back-to-top.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    .btn-back-to-top:hover {
+      transform: translateY(-4px) scale(1.06);
+      box-shadow: 0 14px 32px rgba(234, 88, 12, 0.48);
+    }
   `],
   template: `
     <div (click)="showAppMenu.set(false)">
@@ -629,7 +676,7 @@ export interface PeraturanItem {
         <!-- 5 MENU UTAMA & SUB-MENU (HANYA MUNCUL SETELAH LOGIN) -->
         @if (auth.isLoggedIn()) {
           <section id="aplikasi-section" class="py-5" style="background: #f8fafc;">
-            <div class="container">
+            <div class="container reveal-on-scroll">
               <div class="text-center mb-4">
                 <h2 class="h3 section-title mb-2">Menu Aplikasi</h2>
                 <p class="text-muted small mb-0">Pilih menu utama di bawah untuk mengakses sub-menu modul.</p>
@@ -676,14 +723,14 @@ export interface PeraturanItem {
         <!-- SECTION: BERITA & PENGUMUMAN -->
         <section id="berita" class="py-5" style="background: #f8fafc;">
           <div class="container py-lg-4">
-            <div class="text-center mb-5">
+            <div class="text-center mb-5 reveal-on-scroll">
               <h2 class="h2 section-title">Berita &amp; Pengumuman</h2>
               <p class="mt-3 text-muted mb-0">Informasi terbaru seputar pengelolaan dana pendidikan di lingkungan DKI Jakarta.</p>
             </div>
 
             <div class="row g-4">
               @for (item of beritaList; track item.id) {
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-4 reveal-on-scroll" [style.--reveal-delay.ms]="$index * 110">
                   <article class="news-card">
                     <div class="news-thumb" [style.background]="item.bannerGradient">
                       <i class="bi {{ item.bannerIcon }} watermark-icon"></i>
@@ -716,14 +763,14 @@ export interface PeraturanItem {
         <!-- SECTION: PERATURAN & JUKNIS -->
         <section id="peraturan" class="py-5 bg-white">
           <div class="container py-lg-4" style="max-width: 900px;">
-            <div class="text-center mb-5">
+            <div class="text-center mb-5 reveal-on-scroll">
               <h2 class="h2 section-title">Peraturan &amp; Juknis</h2>
               <p class="mt-3 text-muted mb-0">Dokumen landasan hukum dan petunjuk teknis pelaksanaan.</p>
             </div>
 
-            <div class="peraturan-box d-flex flex-column gap-3">
+            <div class="peraturan-box d-flex flex-column gap-3 reveal-on-scroll">
               @for (doc of peraturanList; track doc.id) {
-                <div class="peraturan-item d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                <div class="peraturan-item reveal-on-scroll d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3" [style.--reveal-delay.ms]="$index * 95">
                   <div class="d-flex align-items-start align-items-sm-center gap-3">
                     <div class="peraturan-icon-box" [style.background]="doc.iconBg" [style.color]="doc.iconColor">
                       <i class="bi {{ doc.icon }}"></i>
@@ -750,7 +797,7 @@ export interface PeraturanItem {
           <div class="prosedur-glow-red"></div>
 
           <div class="container py-lg-4 position-relative" style="z-index: 2;">
-            <div class="text-center mb-5">
+            <div class="text-center mb-5 reveal-on-scroll">
               <h2 class="h2 section-title section-title-dark">Sistem &amp; Prosedur</h2>
               <p class="mt-3 mb-0" style="color: #9ca3af;">Alur pelaporan yang mudah, transparan, dan terintegrasi.</p>
             </div>
@@ -759,7 +806,7 @@ export interface PeraturanItem {
               <div class="d-none d-lg-block prosedur-connector"></div>
 
               @for (step of prosedurSteps; track step.no) {
-                <div class="col-md-6 col-lg-3 position-relative text-center" style="z-index: 2;">
+                <div class="col-md-6 col-lg-3 position-relative text-center reveal-on-scroll" [style.--reveal-delay.ms]="$index * 120" style="z-index: 2;">
                   <div class="step-circle" [class.step-circle-final]="step.isFinal" [style.color]="step.isFinal ? '#ffffff' : step.iconColor">
                     <i class="bi {{ step.icon }}"></i>
                     <div class="step-number-badge"
@@ -780,8 +827,8 @@ export interface PeraturanItem {
       </main>
 
       <!-- FOOTER -->
-      <footer class="bg-white border-top pt-5 pb-4">
-        <div class="container">
+      <footer id="landing-footer" class="bg-white border-top pt-5 pb-4">
+        <div class="container reveal-on-scroll">
           <div class="row g-4 pb-4 border-bottom">
             <!-- Col 1: Brand & Social -->
             <div class="col-lg-6">
@@ -917,21 +964,36 @@ export interface PeraturanItem {
           </div>
         </div>
       }
+      <!-- FLOATING BACK-TO-TOP BUTTON (Muncul saat mencapai akhir landing page) -->
+      <button type="button"
+              class="btn-back-to-top"
+              [class.visible]="showBackToTop()"
+              aria-label="Kembali ke atas"
+              title="Kembali ke Atas"
+              (click)="scrollTo('beranda')">
+        <i class="bi bi-arrow-up fs-5"></i>
+      </button>
     </div>
   `
 })
-export class LandingPageComponent {
+export class LandingPageComponent implements AfterViewInit, OnDestroy {
   readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly el: ElementRef<HTMLElement> = inject(ElementRef);
 
   readonly showAppMenu = signal(false);
   readonly showPasswordModal = signal(false);
   readonly mobileMenuOpen = signal(false);
   readonly isScrolled = signal(false);
+  readonly showBackToTop = signal(false);
   readonly selectedBerita = signal<BeritaItem | null>(null);
   readonly selectedPeraturan = signal<PeraturanItem | null>(null);
+
+  private revealObserver: IntersectionObserver | null = null;
+  private footerObserver: IntersectionObserver | null = null;
+  private footerInView = false;
 
   readonly beritaList: BeritaItem[] = [
     {
@@ -1169,9 +1231,68 @@ export class LandingPageComponent {
 
   pwdForm = { nrk: '', sandiLama: '', sandiBaru: '', konfirmasiSandiBaru: '' };
 
+  ngAfterViewInit(): void {
+    const host = this.el.nativeElement;
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.revealObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed');
+              this.revealObserver?.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -36px 0px' }
+      );
+      host.querySelectorAll('.reveal-on-scroll').forEach((node: Element) => this.revealObserver?.observe(node));
+
+      const footer = host.querySelector('#landing-footer');
+      if (footer) {
+        this.footerObserver = new IntersectionObserver(
+          (entries) => {
+            this.footerInView = entries.some((e) => e.isIntersecting);
+            this.updateBackToTop();
+          },
+          { threshold: 0.08 }
+        );
+        this.footerObserver.observe(footer);
+      }
+    } else {
+      host.querySelectorAll('.reveal-on-scroll').forEach((node: Element) => node.classList.add('revealed'));
+    }
+
+    this.revealVisibleInViewport();
+    this.updateBackToTop();
+  }
+
+  ngOnDestroy(): void {
+    this.revealObserver?.disconnect();
+    this.footerObserver?.disconnect();
+  }
+
   @HostListener('window:scroll')
   onWindowScroll(): void {
     this.isScrolled.set(window.scrollY > 10);
+    this.revealVisibleInViewport();
+    this.updateBackToTop();
+  }
+
+  private revealVisibleInViewport(): void {
+    const viewBottom = window.innerHeight - 36;
+    this.el.nativeElement.querySelectorAll('.reveal-on-scroll:not(.revealed)').forEach((node: Element) => {
+      const rect = node.getBoundingClientRect();
+      if (rect.top <= viewBottom) {
+        node.classList.add('revealed');
+        this.revealObserver?.unobserve(node);
+      }
+    });
+  }
+
+  private updateBackToTop(): void {
+    const docEl = document.documentElement;
+    const nearBottom = window.scrollY + window.innerHeight >= docEl.scrollHeight - 420;
+    this.showBackToTop.set(this.footerInView || (window.scrollY > 300 && nearBottom));
   }
 
   scrollTo(sectionId: string): void {
