@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SiapBos.Shared.Entities;
 
-[Table("rkas_item", Schema = "rkas")]
+[Table("tmrkasbljrinci", Schema = "siap")]
 public class RkasItem
 {
     [Key]

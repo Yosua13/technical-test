@@ -12,17 +12,64 @@ public static class DbSeeder
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SiapBosDbContext>();
 
+        var connStr = db.Database.GetConnectionString() ?? string.Empty;
+        if (connStr.Contains("10.15.36.51", StringComparison.OrdinalIgnoreCase) ||
+            connStr.Contains("siapbosdev", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("PROTEKSI KEAMANAN: Dilarang menjalankan EnsureCreated/Seed pada database referensi siapbosdev (10.15.36.51).");
+        }
+
         await db.Database.EnsureCreatedAsync();
+
+        // Pastikan hanya skema auth, oauth, dan siap yang digunakan (tanpa public dan rkas)
+        bool needsRecreate = false;
+        try
+        {
+            var conn = db.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open)
+                await conn.OpenAsync();
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT
+                    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema IN ('public', 'rkas') AND table_type = 'BASE TABLE') * 100
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'oauth' AND table_name = 'access_token') THEN 0 ELSE 10 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'traplikasi') THEN 0 ELSE 1 END);";
+            var flag = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (flag > 0)
+            {
+                needsRecreate = true;
+            }
+            else if (!await db.AppUsers.AnyAsync(u => u.Username == "ADMIN-TDI") ||
+                     !await db.AppModules.AnyAsync(m => m.KodeAplikasi == "HELP"))
+            {
+                needsRecreate = true;
+            }
+        }
+        catch
+        {
+            needsRecreate = true;
+        }
+
+        if (needsRecreate)
+        {
+            await db.Database.EnsureDeletedAsync();
+            await db.Database.EnsureCreatedAsync();
+            await db.Database.ExecuteSqlRawAsync("DROP SCHEMA IF EXISTS rkas CASCADE;");
+        }
 
         if (await db.Sekolahs.AnyAsync())
         {
             return;
         }
 
-        // 1. Master Roles
+        const string allRoles = "ADMIN-DINAS,ADM_TA,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI";
+
+        // 1. Master Roles (Schema: auth.roles)
         var roles = new List<AppRole>
         {
             new() { RoleCode = SiapBosRoles.AdminDinas, RoleName = "Administrator Dinas Pendidikan", Deskripsi = "Mengelola Dropping Dana, RKAS, User Management & Monitoring Provinsi DKI Jakarta", Level = "DINAS" },
+            new() { RoleCode = "ADM_TA", RoleName = "ADMIN-TA (Tim Tenaga Ahli / TDI)", Deskripsi = "Otoritas penuh untuk tim TA / ADMIN-TDI pada seluruh 5 menu utama SIAP BOS", Level = "DINAS" },
             new() { RoleCode = SiapBosRoles.Sudin, RoleName = "Suku Dinas Pendidikan Wilayah", Deskripsi = "Menyetujui NPD BOP, Pembayaran Sudin, Setoran STS, Koreksi BKU & Monitoring Wilayah", Level = "SUDIN" },
             new() { RoleCode = SiapBosRoles.PaNegeri, RoleName = "Pengguna Anggaran (Kepala Sekolah)", Deskripsi = "Menyetujui Belanja SPJ, Menyetujui NPD, Permohonan Token CMS Bank DKI & BAP Kas", Level = "SEKOLAH" },
             new() { RoleCode = SiapBosRoles.TuNegeri, RoleName = "Verifikator Belanja (Kasubag TU)", Deskripsi = "Memverifikasi kelengkapan dokumen SPJ, Invoice, Pajak & Rincian Akun Belanja", Level = "SEKOLAH" },
@@ -30,55 +77,103 @@ public static class DbSeeder
         };
         db.AppRoles.AddRange(roles);
 
-        // 2. Master Applications & Menus
+        // 2. 5 Menu Utama (Schema: siap.traplikasi) sesuai referensi siapbosdev & landingpage
         var modules = new List<AppModule>
         {
-            new() { KodeAplikasi = "BOS", Nama = "BKU BOSP Negeri", Link = "bos-negeri", Deskripsi = "Penatausahaan Dana BOSP APBN (Input BKU, Approval, Transfer CMS, Pajak & Laporan)", Icon = "bi-cash-coin", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 1 },
-            new() { KodeAplikasi = "BOP", Nama = "BKU BOP Negeri", Link = "bop-negeri", Deskripsi = "Penatausahaan Dana BOP APBD (NPD SIPKD, Input BKU, Koreksi BKU & Laporan K1-K7)", Icon = "bi-bank", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 2 },
-            new() { KodeAplikasi = "ADMN", Nama = "Administrator Dinas", Link = "administrator", Deskripsi = "Dropping Dana BOS/BOP, Konversi/Cek RKAS, Batas Pengajuan & Helpdesk", Icon = "bi-shield-check", AllowedRolesCsv = "ADMIN-DINAS,SUDIN", SortOrder = 3 },
-            new() { KodeAplikasi = "UM", Nama = "User Management & Master", Link = "user-management", Deskripsi = "Manajemen Pengguna, Otoritas, Master Sekolah, Master Periode, BAS & Pajak", Icon = "bi-people", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 4 },
-            new() { KodeAplikasi = "LAIN", Nama = "Konfirmasi Rekening Sekolah", Link = "sekolah", Deskripsi = "Validasi Rekening Bank DKI & NPWP Satuan Pendidikan", Icon = "bi-building-check", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 5 }
+            new() { KodeAplikasi = "UM",   Nama = "User Management", Link = "user-management", Deskripsi = "Kelola Pengguna, Otoritas, Aplikasi, Menu, Periode, Master Sekolah & Pajak", Icon = "bi-people-fill", AllowedRolesCsv = allRoles, SortOrder = 1 },
+            new() { KodeAplikasi = "BOS",  Nama = "BKU BOSP Negeri", Link = "bos-negeri",      Deskripsi = "Penatausahaan Dana BOSP Negeri (Dropping, Input BKU, Approval, Token, CMS, Pajak & Laporan)", Icon = "bi-journal-bookmark-fill", AllowedRolesCsv = allRoles, SortOrder = 2 },
+            new() { KodeAplikasi = "BOP",  Nama = "BKU BOP Negeri",  Link = "bku-bop",         Deskripsi = "Penatausahaan Dana BOP Negeri (Permohonan NPD, Input BKU, Koreksi, BAP Kas & Laporan)", Icon = "bi-bank2", AllowedRolesCsv = allRoles, SortOrder = 3 },
+            new() { KodeAplikasi = "ADMN", Nama = "Administrator",   Link = "administrator",   Deskripsi = "Batas Pengajuan Belanja, Help Desk Pembayaran BOSP/BOP, VA PLN & Migrasi RKAS", Icon = "bi-sliders2-vertical", AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 4 },
+            new() { KodeAplikasi = "HELP", Nama = "Help Desk",       Link = "helpdesk",        Deskripsi = "User Manual, Tiket Bantuan Help Desk & Video Tutorial Penggunaan SIAP", Icon = "bi-headset", AllowedRolesCsv = allRoles, SortOrder = 5 }
         };
         db.AppModules.AddRange(modules);
 
+        // Sub-menu untuk masing-masing dari 5 Menu Utama (Schema: siap.trmenu) sesuai siapbosdev
         var menus = new List<AppMenu>
         {
-            // BOS Menus
-            new() { KodeAplikasi = "BOS", Nama = "Dashboard & Ringkasan BOS", Link = "dashboard", Icon = "bi-speedometer2", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 1 },
-            new() { KodeAplikasi = "BOS", Nama = "Konfirmasi Dropping Dana BOS", Link = "konfirmasi-dana", Icon = "bi-box-arrow-in-down", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 2 },
-            new() { KodeAplikasi = "BOS", Nama = "Input BKU & SPJ BOS", Link = "input-bku", Icon = "bi-journal-plus", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 3 },
-            new() { KodeAplikasi = "BOS", Nama = "Pengajuan & Persetujuan (PK/TU/PA/Sudin)", Link = "persetujuan-bku", Icon = "bi-check2-square", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 4 },
-            new() { KodeAplikasi = "BOS", Nama = "Token PA & Pembayaran CMS Bank DKI", Link = "pembayaran-bku", Icon = "bi-credit-card-2-front", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 5 },
-            new() { KodeAplikasi = "BOS", Nama = "Pembayaran Pajak MPN (Billing & NTPN)", Link = "pembayaran-pajak", Icon = "bi-receipt-cutoff", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 6 },
-            new() { KodeAplikasi = "BOS", Nama = "Setoran Sisa Kas / STS", Link = "setoran-sts", Icon = "bi-arrow-return-left", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,PK-NEGERI", SortOrder = 7 },
-            new() { KodeAplikasi = "BOS", Nama = "Mutasi Rekening, BAP Kas & Tutup Buku", Link = "bap-kas-tutup-buku", Icon = "bi-journal-check", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,PK-NEGERI", SortOrder = 8 },
-            new() { KodeAplikasi = "BOS", Nama = "Cetak Laporan BKU & Monitoring", Link = "laporan-bku", Icon = "bi-file-earmark-pdf", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 9 },
+            // 1. User Management (UM) - 7 Sub Menu sesuai siapbosdev
+            new() { KodeAplikasi = "UM", Nama = "Pengguna",       Link = "pengguna",       Icon = "bi-person-badge",      AllowedRolesCsv = allRoles, SortOrder = 1 },
+            new() { KodeAplikasi = "UM", Nama = "Otoritas",       Link = "otoritas",       Icon = "bi-shield-lock",       AllowedRolesCsv = allRoles, SortOrder = 2 },
+            new() { KodeAplikasi = "UM", Nama = "Aplikasi",       Link = "aplikasi",       Icon = "bi-grid-1x2",          AllowedRolesCsv = allRoles, SortOrder = 3 },
+            new() { KodeAplikasi = "UM", Nama = "Menu",           Link = "menu",           Icon = "bi-list-nested",       AllowedRolesCsv = allRoles, SortOrder = 4 },
+            new() { KodeAplikasi = "UM", Nama = "Periode",        Link = "periode",        Icon = "bi-calendar3",         AllowedRolesCsv = allRoles, SortOrder = 5 },
+            new() { KodeAplikasi = "UM", Nama = "Master Sekolah", Link = "master-sekolah", Icon = "bi-building",          AllowedRolesCsv = allRoles, SortOrder = 6 },
+            new() { KodeAplikasi = "UM", Nama = "Pajak",          Link = "pajak",          Icon = "bi-percent",           AllowedRolesCsv = allRoles, SortOrder = 7 },
 
-            // BOP Menus
-            new() { KodeAplikasi = "BOP", Nama = "Dashboard & Ringkasan BOP", Link = "dashboard", Icon = "bi-speedometer2", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 1 },
-            new() { KodeAplikasi = "BOP", Nama = "NPD BOP & Integrasi SIPKD", Link = "npd-bop", Icon = "bi-file-earmark-text", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,PK-NEGERI", SortOrder = 2 },
-            new() { KodeAplikasi = "BOP", Nama = "Konfirmasi Dropping Dana BOP", Link = "konfirmasi-dana", Icon = "bi-box-arrow-in-down", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 3 },
-            new() { KodeAplikasi = "BOP", Nama = "Input BKU & SPJ BOP", Link = "input-bku", Icon = "bi-journal-plus", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 4 },
-            new() { KodeAplikasi = "BOP", Nama = "Pengajuan & Persetujuan BOP", Link = "persetujuan-bku", Icon = "bi-check2-square", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 5 },
-            new() { KodeAplikasi = "BOP", Nama = "Token PA & Pembayaran CMS BOP", Link = "pembayaran-bku", Icon = "bi-credit-card-2-front", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 6 },
-            new() { KodeAplikasi = "BOP", Nama = "Pembayaran Pajak BOP (MPN)", Link = "pembayaran-pajak", Icon = "bi-receipt-cutoff", AllowedRolesCsv = "ADMIN-DINAS,PA-NEGERI,PK-NEGERI", SortOrder = 7 },
-            new() { KodeAplikasi = "BOP", Nama = "Koreksi BKU & Batal Transfer SPJ", Link = "koreksi-bku", Icon = "bi-pencil-square", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,PK-NEGERI", SortOrder = 8 },
-            new() { KodeAplikasi = "BOP", Nama = "Mutasi Rekening, BAP Kas & Tutup Buku", Link = "bap-kas-tutup-buku", Icon = "bi-journal-check", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,PK-NEGERI", SortOrder = 9 },
-            new() { KodeAplikasi = "BOP", Nama = "Cetak Laporan BOP (K1-K7 & Excel)", Link = "laporan-bku", Icon = "bi-file-earmark-pdf", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 10 },
+            // 2. BKU BOSP Negeri (BOS) - Sesuai siapbosdev
+            new() { KodeAplikasi = "BOS", Nama = "Dashboard BKU BOSP",                             Link = "dashboard",                          Icon = "bi-speedometer2",          AllowedRolesCsv = allRoles, SortOrder = 1 },
+            new() { KodeAplikasi = "BOS", Nama = "Dropping Dana BOSP",                             Link = "konfirmasi-drop-dana",               Icon = "bi-box-arrow-in-down",     AllowedRolesCsv = allRoles, SortOrder = 2 },
+            new() { KodeAplikasi = "BOS", Nama = "Konfirmasi Dropping Dana",                       Link = "dinas-konfirmasi-drop-dana",         Icon = "bi-check2-circle",         AllowedRolesCsv = allRoles, SortOrder = 3 },
+            new() { KodeAplikasi = "BOS", Nama = "Input BKU BOSP",                                 Link = "input-bku",                          Icon = "bi-journal-plus",          AllowedRolesCsv = allRoles, SortOrder = 4 },
+            new() { KodeAplikasi = "BOS", Nama = "Pengajuan Pembayaran BKU BOSP",                  Link = "pengajuan-bku",                      Icon = "bi-send-check",            AllowedRolesCsv = allRoles, SortOrder = 5 },
+            new() { KodeAplikasi = "BOS", Nama = "Persetujuan Pembayaran BKU BOSP (TU)",           Link = "persetujuan-bku-tu",                 Icon = "bi-check2-square",         AllowedRolesCsv = allRoles, SortOrder = 6 },
+            new() { KodeAplikasi = "BOS", Nama = "Persetujuan Pembayaran BKU BOSP (PA)",           Link = "persetujuan-bku-pa",                 Icon = "bi-award",                 AllowedRolesCsv = allRoles, SortOrder = 7 },
+            new() { KodeAplikasi = "BOS", Nama = "Permohonan Token",                               Link = "permohonan-token",                   Icon = "bi-key-fill",              AllowedRolesCsv = allRoles, SortOrder = 8 },
+            new() { KodeAplikasi = "BOS", Nama = "Pembayaran BKU BOSP",                            Link = "pembayaran-bku",                     Icon = "bi-credit-card-2-front",   AllowedRolesCsv = allRoles, SortOrder = 9 },
+            new() { KodeAplikasi = "BOS", Nama = "Pembayaran Pajak BKU BOSP",                      Link = "pembayaran-pajak-bku",               Icon = "bi-receipt-cutoff",        AllowedRolesCsv = allRoles, SortOrder = 10 },
+            new() { KodeAplikasi = "BOS", Nama = "Batal Transfer BKU BOSP",                        Link = "batal-transfer-spj",                 Icon = "bi-x-octagon",             AllowedRolesCsv = allRoles, SortOrder = 11 },
+            new() { KodeAplikasi = "BOS", Nama = "Setor Pendapatan Lain-Lain BOSP",                Link = "setor-pendapatan-lain2-bos",         Icon = "bi-arrow-return-left",     AllowedRolesCsv = allRoles, SortOrder = 12 },
+            new() { KodeAplikasi = "BOS", Nama = "Cetak Setor",                                    Link = "cetak-setoran",                      Icon = "bi-printer",               AllowedRolesCsv = allRoles, SortOrder = 13 },
+            new() { KodeAplikasi = "BOS", Nama = "Persetujuan Setoran",                            Link = "persetujuan-setoran",                Icon = "bi-patch-check",           AllowedRolesCsv = allRoles, SortOrder = 14 },
+            new() { KodeAplikasi = "BOS", Nama = "BAP KAS BOSP",                                   Link = "bap-kas-bos",                        Icon = "bi-clipboard-data",        AllowedRolesCsv = allRoles, SortOrder = 15 },
+            new() { KodeAplikasi = "BOS", Nama = "Tutup BKU",                                      Link = "tutup-bku",                          Icon = "bi-lock-fill",             AllowedRolesCsv = allRoles, SortOrder = 16 },
+            new() { KodeAplikasi = "BOS", Nama = "Batal Tutup BKU",                                Link = "batal-tutup-bku",                    Icon = "bi-unlock-fill",           AllowedRolesCsv = allRoles, SortOrder = 17 },
+            new() { KodeAplikasi = "BOS", Nama = "Mutasi 12 Transaksi BOSP",                       Link = "bos-mutasi-12",                      Icon = "bi-clock-history",         AllowedRolesCsv = allRoles, SortOrder = 18 },
+            new() { KodeAplikasi = "BOS", Nama = "Mutasi Semua Transaksi BOSP",                    Link = "bos-mutasi-semua",                   Icon = "bi-bank",                  AllowedRolesCsv = allRoles, SortOrder = 19 },
+            new() { KodeAplikasi = "BOS", Nama = "Laporan BKU BOSP",                               Link = "laporan-BKU",                        Icon = "bi-file-earmark-pdf",      AllowedRolesCsv = allRoles, SortOrder = 20 },
+            new() { KodeAplikasi = "BOS", Nama = "List BKU BOSP",                                  Link = "list-bku-bosp",                      Icon = "bi-table",                 AllowedRolesCsv = allRoles, SortOrder = 21 },
+            new() { KodeAplikasi = "BOS", Nama = "Laporan Monitoring Dinas",                       Link = "laporan-monitoring-dinas",           Icon = "bi-bar-chart-line",        AllowedRolesCsv = allRoles, SortOrder = 22 },
+            new() { KodeAplikasi = "BOS", Nama = "Pengajuan dan Persetujuan Pendapatan Lain-Lain", Link = "pengajuan-pendapatan-lain-lain",     Icon = "bi-file-earmark-plus",     AllowedRolesCsv = allRoles, SortOrder = 23 },
+            new() { KodeAplikasi = "BOS", Nama = "Pembayaran Pindah Buku BOSP",                    Link = "pembayaran-pendapatan-lain-lain",    Icon = "bi-arrow-left-right",      AllowedRolesCsv = allRoles, SortOrder = 24 },
+            new() { KodeAplikasi = "BOS", Nama = "Persetujuan Koreksi Periode Sebelum BOSP",       Link = "persetujuan-koreksi-dinas-bos",      Icon = "bi-check-all",             AllowedRolesCsv = allRoles, SortOrder = 25 },
+            new() { KodeAplikasi = "BOS", Nama = "Koreksi Periode Sebelum BOSP",                   Link = "input-bku-koreksi",                  Icon = "bi-pencil-square",         AllowedRolesCsv = allRoles, SortOrder = 26 },
+            new() { KodeAplikasi = "BOS", Nama = "Koreksi Tahun Lalu",                             Link = "input-bku-koreksi-tahun-lalu",       Icon = "bi-journal-arrow-up",      AllowedRolesCsv = allRoles, SortOrder = 27 },
 
-            // Admin Menus
-            new() { KodeAplikasi = "ADMN", Nama = "Dropping Dana BOS & BOP", Link = "dropping-dana", Icon = "bi-send-check", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 1 },
-            new() { KodeAplikasi = "ADMN", Nama = "Konversi & Pengecekan RKAS", Link = "konversi-rkas", Icon = "bi-file-earmark-spreadsheet", AllowedRolesCsv = "ADMIN-DINAS,SUDIN", SortOrder = 2 },
-            new() { KodeAplikasi = "ADMN", Nama = "Batas Pengajuan & Periode", Link = "batas-pengajuan", Icon = "bi-calendar-event", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 3 },
-            new() { KodeAplikasi = "ADMN", Nama = "Log Integrasi & Helpdesk", Link = "helpdesk", Icon = "bi-activity", AllowedRolesCsv = "ADMIN-DINAS,SUDIN", SortOrder = 4 },
+            // 3. BKU BOP Negeri (BOP) - Sesuai siapbosdev
+            new() { KodeAplikasi = "BOP", Nama = "Dashboard BKU BOP",                              Link = "dashboard",                          Icon = "bi-speedometer2",          AllowedRolesCsv = allRoles, SortOrder = 1 },
+            new() { KodeAplikasi = "BOP", Nama = "Permohonan NPD",                                 Link = "konfirmasi-drop-dana-bop",           Icon = "bi-file-earmark-text",     AllowedRolesCsv = allRoles, SortOrder = 2 },
+            new() { KodeAplikasi = "BOP", Nama = "Pengajuan Permohonan NPD",                       Link = "pengajuan-npd",                      Icon = "bi-send-plus",             AllowedRolesCsv = allRoles, SortOrder = 3 },
+            new() { KodeAplikasi = "BOP", Nama = "Persetujuan NPD",                                Link = "persetujuan-npd",                    Icon = "bi-check2-all",            AllowedRolesCsv = allRoles, SortOrder = 4 },
+            new() { KodeAplikasi = "BOP", Nama = "Input BKU BOP",                                  Link = "input-bku",                          Icon = "bi-journal-plus",          AllowedRolesCsv = allRoles, SortOrder = 5 },
+            new() { KodeAplikasi = "BOP", Nama = "Pengajuan Pembayaran BKU BOP",                   Link = "pengajuan-pembayaran-bku",           Icon = "bi-send-check",            AllowedRolesCsv = allRoles, SortOrder = 6 },
+            new() { KodeAplikasi = "BOP", Nama = "Persetujuan Pembayaran BKU BOP",                 Link = "persetujuan-bku",                    Icon = "bi-check2-square",         AllowedRolesCsv = allRoles, SortOrder = 7 },
+            new() { KodeAplikasi = "BOP", Nama = "Permohonan Token",                               Link = "permohonan-token",                   Icon = "bi-key-fill",              AllowedRolesCsv = allRoles, SortOrder = 8 },
+            new() { KodeAplikasi = "BOP", Nama = "Pembayaran BKU BOP",                             Link = "pembayaran-bku",                     Icon = "bi-credit-card-2-front",   AllowedRolesCsv = allRoles, SortOrder = 9 },
+            new() { KodeAplikasi = "BOP", Nama = "Pembayaran Pajak",                               Link = "pembayaran-pajak-bop",               Icon = "bi-receipt-cutoff",        AllowedRolesCsv = allRoles, SortOrder = 10 },
+            new() { KodeAplikasi = "BOP", Nama = "Batal Transfer BKU BOP",                         Link = "batal-transfer-spj",                 Icon = "bi-x-octagon",             AllowedRolesCsv = allRoles, SortOrder = 11 },
+            new() { KodeAplikasi = "BOP", Nama = "Persetujuan Batal Transfer BKU BOP",             Link = "persetujuan-batal-tf-spj",           Icon = "bi-shield-check",          AllowedRolesCsv = allRoles, SortOrder = 12 },
+            new() { KodeAplikasi = "BOP", Nama = "Cetak Setoran BOP",                              Link = "cetak-setoran",                      Icon = "bi-printer",               AllowedRolesCsv = allRoles, SortOrder = 13 },
+            new() { KodeAplikasi = "BOP", Nama = "Persetujuan Setoran BOP",                        Link = "persetujuan-setoran",                Icon = "bi-patch-check",           AllowedRolesCsv = allRoles, SortOrder = 14 },
+            new() { KodeAplikasi = "BOP", Nama = "BAP KAS BOP",                                    Link = "bap-kas",                            Icon = "bi-clipboard-data",        AllowedRolesCsv = allRoles, SortOrder = 15 },
+            new() { KodeAplikasi = "BOP", Nama = "Batal Tutup BKU",                                Link = "batal-tutup-bku",                    Icon = "bi-unlock-fill",           AllowedRolesCsv = allRoles, SortOrder = 16 },
+            new() { KodeAplikasi = "BOP", Nama = "Tutup BKU",                                      Link = "tutup-bku",                          Icon = "bi-lock-fill",             AllowedRolesCsv = allRoles, SortOrder = 17 },
+            new() { KodeAplikasi = "BOP", Nama = "Mutasi 12 Transaksi",                            Link = "mutasi-transfer-12-transaksi",       Icon = "bi-clock-history",         AllowedRolesCsv = allRoles, SortOrder = 18 },
+            new() { KodeAplikasi = "BOP", Nama = "Laporan BKU BOP",                                Link = "laporan-BKU",                        Icon = "bi-file-earmark-pdf",      AllowedRolesCsv = allRoles, SortOrder = 19 },
+            new() { KodeAplikasi = "BOP", Nama = "BAP Kas Approval (Sudin)",                       Link = "bap-kas-approval-sudin",             Icon = "bi-clipboard-check",       AllowedRolesCsv = allRoles, SortOrder = 20 },
+            new() { KodeAplikasi = "BOP", Nama = "Input Setor Sisa Belanja",                       Link = "setor-sisa-belanja",                 Icon = "bi-arrow-return-left",     AllowedRolesCsv = allRoles, SortOrder = 21 },
+            new() { KodeAplikasi = "BOP", Nama = "Batas Pengajuan Belanja",                        Link = "batas-pengajuan-belanja",            Icon = "bi-calendar-event",        AllowedRolesCsv = allRoles, SortOrder = 22 },
+            new() { KodeAplikasi = "BOP", Nama = "BAP KAS Approval (PA)",                          Link = "bap-kas-approval-pa",                Icon = "bi-clipboard2-check",      AllowedRolesCsv = allRoles, SortOrder = 23 },
+            new() { KodeAplikasi = "BOP", Nama = "Laporan Monitoring Sudin",                       Link = "laporan-monitoring-sudin",           Icon = "bi-bar-chart-line",        AllowedRolesCsv = allRoles, SortOrder = 24 },
+            new() { KodeAplikasi = "BOP", Nama = "List BKU BOP",                                   Link = "list-bku-bop",                       Icon = "bi-table",                 AllowedRolesCsv = allRoles, SortOrder = 25 },
+            new() { KodeAplikasi = "BOP", Nama = "Pengajuan & Persetujuan Pendapatan Lain-Lain BOP", Link = "pengajuan-pendapatan-lain-lain-bop", Icon = "bi-file-earmark-plus",   AllowedRolesCsv = allRoles, SortOrder = 26 },
+            new() { KodeAplikasi = "BOP", Nama = "Pembayaran Pindah Buku BOP",                     Link = "pembayaran-pendapatan-lain-lain-bop", Icon = "bi-arrow-left-right",     AllowedRolesCsv = allRoles, SortOrder = 27 },
+            new() { KodeAplikasi = "BOP", Nama = "Persetujuan Koreksi Periode Sebelum BOP",        Link = "persetujuan-koreksi-sudin-bop",      Icon = "bi-check-all",             AllowedRolesCsv = allRoles, SortOrder = 28 },
+            new() { KodeAplikasi = "BOP", Nama = "Koreksi Periode Sebelum BOP",                    Link = "input-bku-koreksi",                  Icon = "bi-pencil-square",         AllowedRolesCsv = allRoles, SortOrder = 29 },
+            new() { KodeAplikasi = "BOP", Nama = "Mutasi Semua Transaksi BOP",                     Link = "bop-mutasi-semua",                   Icon = "bi-bank",                  AllowedRolesCsv = allRoles, SortOrder = 30 },
 
-            // User Management Menus
-            new() { KodeAplikasi = "UM", Nama = "Manajemen Pengguna (+SIMPEG)", Link = "pengguna", Icon = "bi-person-gear", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 1 },
-            new() { KodeAplikasi = "UM", Nama = "Master Sekolah & Rekening", Link = "sekolah", Icon = "bi-building", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 2 },
-            new() { KodeAplikasi = "UM", Nama = "Master Otoritas & Modul", Link = "otoritas", Icon = "bi-key", AllowedRolesCsv = "ADMIN-DINAS", SortOrder = 3 },
+            // 4. Administrator (ADMN) - Sesuai siapbosdev
+            new() { KodeAplikasi = "ADMN", Nama = "Batas Pengajuan Belanja",                       Link = "batas-pengajuan-belanja-list-opd",   Icon = "bi-calendar-range",        AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 1 },
+            new() { KodeAplikasi = "ADMN", Nama = "Help Desk Pembayaran BKU BOSP",                 Link = "help-pembayaran-bos",                Icon = "bi-life-preserver",        AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 2 },
+            new() { KodeAplikasi = "ADMN", Nama = "Help Desk Pembayaran BKU BOP",                  Link = "help-pembayaran-bop",                Icon = "bi-headset",               AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 3 },
+            new() { KodeAplikasi = "ADMN", Nama = "Help Desk Virtual Account PLN",                 Link = "help-va-pln",                        Icon = "bi-lightning-charge",      AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 4 },
+            new() { KodeAplikasi = "ADMN", Nama = "Migrasi RKAS",                                  Link = "konversi-data",                      Icon = "bi-file-earmark-spreadsheet", AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 5 },
+            new() { KodeAplikasi = "ADMN", Nama = "Dropping Dana BOS & BOP",                       Link = "dropping-dana",                      Icon = "bi-send-check",            AllowedRolesCsv = "ADMIN-DINAS,ADM_TA,SUDIN", SortOrder = 6 },
+            new() { KodeAplikasi = "ADMN", Nama = "Konfirmasi Saldo Rekening",                     Link = "konfirmasi-rekening",                Icon = "bi-bank2",                 AllowedRolesCsv = allRoles, SortOrder = 7 },
 
-            // Sekolah Menu
-            new() { KodeAplikasi = "LAIN", Nama = "Konfirmasi Saldo Rekening", Link = "konfirmasi-rekening", Icon = "bi-bank2", AllowedRolesCsv = "ADMIN-DINAS,SUDIN,PA-NEGERI,TU-NEGERI,PK-NEGERI", SortOrder = 1 }
+            // 5. Help Desk (HELP) - Sesuai landingpage referensi
+            new() { KodeAplikasi = "HELP", Nama = "User Manual",                                   Link = "user-manual",                        Icon = "bi-book-half",             AllowedRolesCsv = allRoles, SortOrder = 1 },
+            new() { KodeAplikasi = "HELP", Nama = "Help Desk",                                     Link = "tiket-helpdesk",                     Icon = "bi-ticket-detailed",       AllowedRolesCsv = allRoles, SortOrder = 2 },
+            new() { KodeAplikasi = "HELP", Nama = "Video Tutorial",                                Link = "video-tutorial",                     Icon = "bi-play-btn",              AllowedRolesCsv = allRoles, SortOrder = 3 }
         };
         db.AppMenus.AddRange(menus);
 
@@ -178,21 +273,27 @@ public static class DbSeeder
         db.Sekolahs.AddRange(sman1, smpn115, sdnMenteng01);
         await db.SaveChangesAsync();
 
-        // 4. Users (all password = "password123")
+        // 4. Users (Schema: auth.users) — termasuk akun referensi ADMIN-TDI (MonaS123!)
         var defaultPasswordHash = BCrypt.Net.BCrypt.HashPassword("password123");
+        var adminTdiPasswordHash = BCrypt.Net.BCrypt.HashPassword("MonaS123!");
         var users = new List<AppUser>
         {
-            new() { Username = "admin.dinas", PasswordHash = defaultPasswordHash, NamaLengkap = "Yusuf Pratama, M.Kom.", Nrk = "100001", Nip = "198001012005011001", Nik = "3171010101800001", Email = "admin.dinas@disdik.jakarta.go.id", NoHp = "081210000001", RoleCode = SiapBosRoles.AdminDinas, Jabatan = "Administrator Dinas Pendidikan Provinsi DKI Jakarta", WilayahSudin = "ALL", SekolahId = null },
-            new() { Username = "sudin.jp", PasswordHash = defaultPasswordHash, NamaLengkap = "Drs. Bambang Sutrisno, M.Si.", Nrk = "100002", Nip = "197504151999031002", Nik = "3171021504750002", Email = "sudin.jp@disdik.jakarta.go.id", NoHp = "081210000002", RoleCode = SiapBosRoles.Sudin, Jabatan = "Kepala Suku Dinas Pendidikan Wil. I Jakarta Pusat", WilayahSudin = "JP", SekolahId = null },
+            new() { Username = "ADMIN-TDI", PasswordHash = adminTdiPasswordHash, NamaLengkap = "TDI ADMIN", Nrk = "ADMIN-TDI", Nip = "198501012010011001", Nik = "3171010101850001", Email = "admin.tdi@jakarta.go.id", NoHp = "081210000000", RoleCode = SiapBosRoles.AdminDinas, Jabatan = "ADMIN-TA (Administrator TDI)", WilayahSudin = "ALL", SekolahId = sman1.Id },
+            new() { Username = "admin.dinas", PasswordHash = defaultPasswordHash, NamaLengkap = "Yusuf Pratama, M.Kom.", Nrk = "100001", Nip = "198001012005011001", Nik = "3171010101800001", Email = "admin.dinas@disdik.jakarta.go.id", NoHp = "081210000001", RoleCode = SiapBosRoles.AdminDinas, Jabatan = "Administrator Dinas Pendidikan Provinsi DKI Jakarta", WilayahSudin = "ALL", SekolahId = sman1.Id },
+            new() { Username = "sudin.jp", PasswordHash = defaultPasswordHash, NamaLengkap = "Drs. Bambang Sutrisno, M.Si.", Nrk = "100002", Nip = "197504151999031002", Nik = "3171021504750002", Email = "sudin.jp@disdik.jakarta.go.id", NoHp = "081210000002", RoleCode = SiapBosRoles.Sudin, Jabatan = "Kepala Suku Dinas Pendidikan Wil. I Jakarta Pusat", WilayahSudin = "JP", SekolahId = sman1.Id },
             new() { Username = "kepsek.sman1", PasswordHash = defaultPasswordHash, NamaLengkap = sman1.NamaKepalaSekolah, Nrk = sman1.NrkKepalaSekolah, Nip = sman1.NipKepalaSekolah, Nik = "3171031205720003", Email = "pa.sman1@jakarta.sch.id", NoHp = "081210000003", RoleCode = SiapBosRoles.PaNegeri, Jabatan = "Kepala Sekolah (Pengguna Anggaran)", WilayahSudin = "JP", SekolahId = sman1.Id },
-            new() { Username = "tu.sman1", PasswordHash = defaultPasswordHash, NamaLengkap = sman1.NamaKasubagTu, Nrk = sman1.NrkKasubagTu, Nip = sman1.NipKasubagTu, Nik = "3171041503800004", Email = "tu.sman1@jakarta.sch.id", NoHp = "081210000004", RoleCode = SiapBosRoles.TuNegeri, Jabatan = "Kasubag Tata Usaha (Verifikator)", WilayahSudin = "JP", SekolahId = sman1.Id },
+            new() { Username = "tu.sman1", PasswordHash = defaultPasswordHash, NamaLengkap = sman1.NamaKasubagTu, Nrk = sman1.NipKasubagTu, Nip = sman1.NipKasubagTu, Nik = "3171041503800004", Email = "tu.sman1@jakarta.sch.id", NoHp = "081210000004", RoleCode = SiapBosRoles.TuNegeri, Jabatan = "Kasubag Tata Usaha (Verifikator)", WilayahSudin = "JP", SekolahId = sman1.Id },
             new() { Username = "bendahara.sman1", PasswordHash = defaultPasswordHash, NamaLengkap = sman1.NamaBendahara, Nrk = sman1.NrkBendahara, Nip = sman1.NipBendahara, Nik = "3171052011880005", Email = "pk.sman1@jakarta.sch.id", NoHp = "081210000005", RoleCode = SiapBosRoles.PkNegeri, Jabatan = "Bendahara Sekolah (Pemegang Kas)", WilayahSudin = "JP", SekolahId = sman1.Id },
             new() { Username = "bendahara.smpn115", PasswordHash = defaultPasswordHash, NamaLengkap = smpn115.NamaBendahara, Nrk = smpn115.NrkBendahara, Nip = smpn115.NipBendahara, Nik = "3174011804910006", Email = "pk.smpn115@jakarta.sch.id", NoHp = "081210000006", RoleCode = SiapBosRoles.PkNegeri, Jabatan = "Bendahara Sekolah (Pemegang Kas)", WilayahSudin = "JS", SekolahId = smpn115.Id }
         };
         db.AppUsers.AddRange(users);
 
-        // 5. Master Periode & Tax & BAS
+        // 5. Master Periode (2025 & 2026) & Tax & BAS (Schema: siap)
         db.MasterPeriodes.AddRange(
+            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOS", KodePeriode = "01", NamaPeriode = "Tahap 1 (Januari - Juni 2025)", BulanMulai = 1, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2025, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
+            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOS", KodePeriode = "02", NamaPeriode = "Tahap 2 (Juli - Desember 2025)", BulanMulai = 7, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(2025, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
+            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOP", KodePeriode = "TW1", NamaPeriode = "Triwulan I (Januari - Maret 2025)", BulanMulai = 1, BulanSelesai = 3, BatasPengajuanBelanja = new DateTime(2025, 3, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
+            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOP", KodePeriode = "TW2", NamaPeriode = "Triwulan II (April - Juni 2025)", BulanMulai = 4, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2025, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
             new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", NamaPeriode = "Tahap 1 (Januari - Juni 2026)", BulanMulai = 1, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2026, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
             new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "02", NamaPeriode = "Tahap 2 (Juli - Desember 2026)", BulanMulai = 7, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(2026, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
             new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", NamaPeriode = "Triwulan I (Januari - Maret 2026)", BulanMulai = 1, BulanSelesai = 3, BatasPengajuanBelanja = new DateTime(2026, 3, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
@@ -652,6 +753,90 @@ public static class DbSeeder
             Status = "RESOLVED", TanggapanAdmin = "SP2D Tahap 2 senilai Rp 300.000.000 telah dirilis oleh Dinas dan siap dikonfirmasi di menu Konfirmasi Dana.",
             ResolvedAt = DateTime.UtcNow.AddDays(-1)
         });
+
+        // 12. Seed OAuth Schema (oauth.access_token & oauth.history_access_token)
+        var initialTokenId = Guid.NewGuid().ToString("N");
+        db.OAuthAccessTokens.Add(new OAuthAccessToken
+        {
+            TokenId = initialTokenId,
+            UserName = "ADMIN-TDI",
+            ClientId = "siapbos-webapp",
+            RoleCode = SiapBosRoles.AdminDinas,
+            TahunAnggaran = 2025,
+            IpAddress = "127.0.0.1",
+            LoginAt = DateTime.UtcNow
+        });
+        db.OAuthTokenHistories.Add(new OAuthTokenHistory
+        {
+            AccessId = initialTokenId,
+            UserName = "ADMIN-TDI",
+            ClientId = "siapbos-webapp",
+            IpAddress = "127.0.0.1",
+            LoginAt = DateTime.UtcNow,
+            IsLogout = false
+        });
+
+        await db.SaveChangesAsync();
+
+        // 13. Duplikasi Data Transaksi untuk Tahun Anggaran 2025 agar Login TA 2025 maupun TA 2026 memiliki data lengkap
+        var rkas2026 = await db.RkasItems.Where(r => r.TahunAnggaran == 2026).AsNoTracking().ToListAsync();
+        foreach (var r in rkas2026)
+        {
+            r.Id = 0;
+            r.TahunAnggaran = 2025;
+            db.RkasItems.Add(r);
+        }
+
+        var drop2026 = await db.DroppingDanas.Where(d => d.TahunAnggaran == 2026).AsNoTracking().ToListAsync();
+        foreach (var d in drop2026)
+        {
+            d.Id = 0;
+            d.TahunAnggaran = 2025;
+            d.NomorSp2d = d.NomorSp2d.Replace("2026", "2025");
+            d.TanggalDropping = d.TanggalDropping.AddYears(-1);
+            if (d.TanggalKonfirmasi.HasValue) d.TanggalKonfirmasi = d.TanggalKonfirmasi.Value.AddYears(-1);
+            db.DroppingDanas.Add(d);
+        }
+
+        var npd2026 = await db.NpdBops.Where(n => n.TahunAnggaran == 2026).AsNoTracking().ToListAsync();
+        foreach (var n in npd2026)
+        {
+            n.Id = 0;
+            n.TahunAnggaran = 2025;
+            n.NomorNpd = n.NomorNpd.Replace("2026", "2025");
+            n.TanggalNpd = n.TanggalNpd.AddYears(-1);
+            if (n.NomorSipkd != null) n.NomorSipkd = n.NomorSipkd.Replace("2026", "2025");
+            db.NpdBops.Add(n);
+        }
+
+        var bku2026 = await db.BkuTransactions
+            .Include(b => b.DetailItems)
+            .Include(b => b.TaxItems)
+            .Where(b => b.TahunAnggaran == 2026)
+            .AsNoTracking()
+            .ToListAsync();
+
+        foreach (var b in bku2026)
+        {
+            b.Id = 0;
+            b.TahunAnggaran = 2025;
+            b.NomorBku = b.NomorBku.Replace("2026", "2025");
+            b.NomorBukti = b.NomorBukti.Replace("2026", "2025");
+            b.TanggalTransaksi = b.TanggalTransaksi.AddYears(-1);
+            foreach (var det in b.DetailItems)
+            {
+                det.Id = 0;
+                det.BkuTransactionId = 0;
+                det.RkasItemId = null;
+            }
+            foreach (var tx in b.TaxItems)
+            {
+                tx.Id = 0;
+                tx.BkuTransactionId = 0;
+                tx.TahunPajak = 2025;
+            }
+            db.BkuTransactions.Add(b);
+        }
 
         await db.SaveChangesAsync();
     }

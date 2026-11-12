@@ -201,7 +201,7 @@ public class IntegrationAuditLog
     public bool IsSuccess { get; set; } = true;
 }
 
-[Table("trhelpdesk_ticket", Schema = "public")]
+[Table("trhelpdesk_ticket", Schema = "siap")]
 public class HelpdeskTicket
 {
     [Key]

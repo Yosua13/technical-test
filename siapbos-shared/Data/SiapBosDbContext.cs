@@ -32,10 +32,13 @@ public class SiapBosDbContext : DbContext
     public DbSet<BkuCorrection> BkuCorrections => Set<BkuCorrection>();
     public DbSet<IntegrationAuditLog> IntegrationAuditLogs => Set<IntegrationAuditLog>();
     public DbSet<HelpdeskTicket> HelpdeskTickets => Set<HelpdeskTicket>();
+    public DbSet<OAuthAccessToken> OAuthAccessTokens => Set<OAuthAccessToken>();
+    public DbSet<OAuthTokenHistory> OAuthTokenHistories => Set<OAuthTokenHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasDefaultSchema("siap");
 
         modelBuilder.Entity<AppUser>(entity =>
         {

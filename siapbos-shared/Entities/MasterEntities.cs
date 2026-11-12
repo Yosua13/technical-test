@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SiapBos.Shared.Entities;
 
-[Table("trsiapsekolah", Schema = "public")]
+[Table("trsekolah", Schema = "siap")]
 public class Sekolah
 {
     [Key]
@@ -88,7 +88,7 @@ public class Sekolah
     public DateTime? TanggalKonfirmasiRekening { get; set; }
 }
 
-[Table("trsiappengguna", Schema = "auth")]
+[Table("users", Schema = "auth")]
 public class AppUser
 {
     [Key]
@@ -134,7 +134,7 @@ public class AppUser
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-[Table("trsiapotoritas", Schema = "auth")]
+[Table("roles", Schema = "auth")]
 public class AppRole
 {
     [Key]
@@ -153,14 +153,14 @@ public class AppRole
     public string Level { get; set; } = "SEKOLAH"; // DINAS, SUDIN, SEKOLAH
 }
 
-[Table("trsiapaplikasi", Schema = "auth")]
+[Table("traplikasi", Schema = "siap")]
 public class AppModule
 {
     [Key]
     public int Id { get; set; }
 
     [Required, MaxLength(20)]
-    public string KodeAplikasi { get; set; } = string.Empty; // BOS, BOP, ADMN, UM, LAIN
+    public string KodeAplikasi { get; set; } = string.Empty; // UM, BOS, BOP, ADMN, HELP
 
     [Required, MaxLength(100)]
     public string Nama { get; set; } = string.Empty;
@@ -181,7 +181,7 @@ public class AppModule
     public bool IsActive { get; set; } = true;
 }
 
-[Table("trsiapmenu", Schema = "auth")]
+[Table("trmenu", Schema = "siap")]
 public class AppMenu
 {
     [Key]
@@ -206,7 +206,7 @@ public class AppMenu
     public bool IsActive { get; set; } = true;
 }
 
-[Table("trperiode", Schema = "public")]
+[Table("trperiode", Schema = "siap")]
 public class MasterPeriode
 {
     [Key]
@@ -229,7 +229,7 @@ public class MasterPeriode
     public bool IsActive { get; set; } = true;
 }
 
-[Table("trbas", Schema = "public")]
+[Table("trbas", Schema = "siap")]
 public class BasAccount
 {
     [Key]
@@ -249,7 +249,7 @@ public class BasAccount
     public bool IsActive { get; set; } = true;
 }
 
-[Table("trpajak", Schema = "public")]
+[Table("trpotspm", Schema = "siap")]
 public class TaxMaster
 {
     [Key]
@@ -272,4 +272,52 @@ public class TaxMaster
 
     [MaxLength(250)]
     public string Keterangan { get; set; } = string.Empty;
+}
+
+[Table("access_token", Schema = "oauth")]
+public class OAuthAccessToken
+{
+    [Key]
+    [MaxLength(80)]
+    public string TokenId { get; set; } = Guid.NewGuid().ToString("N");
+
+    [Required, MaxLength(80)]
+    public string UserName { get; set; } = string.Empty;
+
+    [MaxLength(60)]
+    public string ClientId { get; set; } = "siapbos-webapp";
+
+    [MaxLength(40)]
+    public string RoleCode { get; set; } = string.Empty;
+
+    public int TahunAnggaran { get; set; } = 2025;
+
+    [MaxLength(60)]
+    public string IpAddress { get; set; } = "127.0.0.1";
+
+    public DateTime LoginAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiredAt { get; set; } = DateTime.UtcNow.AddHours(8);
+}
+
+[Table("history_access_token", Schema = "oauth")]
+public class OAuthTokenHistory
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required, MaxLength(80)]
+    public string AccessId { get; set; } = string.Empty;
+
+    [Required, MaxLength(80)]
+    public string UserName { get; set; } = string.Empty;
+
+    [MaxLength(60)]
+    public string ClientId { get; set; } = "siapbos-webapp";
+
+    [MaxLength(60)]
+    public string IpAddress { get; set; } = "127.0.0.1";
+
+    public DateTime LoginAt { get; set; } = DateTime.UtcNow;
+    public bool IsLogout { get; set; }
+    public DateTime? LogoutAt { get; set; }
 }
