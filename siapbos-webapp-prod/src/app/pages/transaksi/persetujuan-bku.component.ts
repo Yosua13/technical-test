@@ -17,17 +17,17 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
     <app-sekolah-bar [sumberDana]="sumberDana()" (sekolahChanged)="loadData()" />
 
     <!-- Role Context Banner + Quick Switch Hint -->
-    <div class="alert alert-warning bg-warning bg-opacity-10 border-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div class="small">
-        <i class="bi bi-shield-check me-1 text-warning-emphasis"></i>
-        Role Login Aktif: <strong>{{ auth.currentUser()?.roleCode }} ({{ auth.currentUser()?.namaLengkap }})</strong>.
-        Alur berjenjang: <strong>PK Ajukan (0→1) → Verifikator TU (1→2) → Kepala Sekolah PA (2→3) → Bayar CMS Bank DKI</strong>.
+    <div class="siap-card px-3 py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small text-secondary">
+        <i class="bi bi-shield-check me-1 text-dark"></i>
+        Role Login Aktif: <strong class="text-dark">{{ auth.currentUser()?.roleCode }} ({{ auth.currentUser()?.namaLengkap }})</strong> ·
+        Alur: <strong class="text-dark">PK (0→1) → TU (1→2) → PA (2→3) → CMS</strong>
       </div>
       <div class="d-flex gap-1">
-        <button class="btn btn-xs btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('PK-NEGERI')">PK</button>
-        <button class="btn btn-xs btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('TU-NEGERI')">TU</button>
-        <button class="btn btn-xs btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('PA-NEGERI')">PA</button>
-        <button class="btn btn-xs btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('SUDIN')">SUDIN</button>
+        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('PK-NEGERI')">PK</button>
+        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('TU-NEGERI')">TU</button>
+        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('PA-NEGERI')">PA</button>
+        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('SUDIN')">SUDIN</button>
       </div>
     </div>
 
@@ -35,14 +35,14 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
     <ul class="nav nav-pills mb-3 gap-2">
       @for (tab of tabs; track tab.key) {
         <li class="nav-item">
-          <button class="nav-link fw-semibold small rounded-pill px-3"
-                  [class.active]="activeTab() === tab.key"
-                  [class.bg-warning]="activeTab() === tab.key"
-                  [class.text-dark]="activeTab() === tab.key"
+          <button class="btn btn-sm fw-semibold rounded-pill px-3"
+                  [class.btn-dark]="activeTab() === tab.key"
+                  [class.btn-neutral]="activeTab() !== tab.key"
                   (click)="activeTab.set(tab.key)">
             {{ tab.label }}
             <span class="badge rounded-pill ms-1"
-                  [class.bg-dark]="activeTab() === tab.key"
+                  [class.bg-white]="activeTab() === tab.key"
+                  [class.text-dark]="activeTab() === tab.key"
                   [class.text-bg-secondary]="activeTab() !== tab.key">
               {{ countByTab(tab.key) }}
             </span>

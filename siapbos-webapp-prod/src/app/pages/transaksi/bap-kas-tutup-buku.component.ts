@@ -107,8 +107,8 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
               <small class="text-muted">Sinkronisasi real-time via siapbos-integration (/api/mutasi/byNoRek)</small>
             </div>
             <div class="d-flex gap-2">
-              <button class="btn btn-sm" [class.btn-warning]="limit12()" [class.btn-outline-secondary]="!limit12()" (click)="limit12.set(true); loadMutasi()">12 Terakhir</button>
-              <button class="btn btn-sm" [class.btn-warning]="!limit12()" [class.btn-outline-secondary]="limit12()" (click)="limit12.set(false); loadMutasi()">Semua Mutasi</button>
+              <button class="btn btn-sm" [class.btn-dark]="limit12()" [class.btn-neutral]="!limit12()" (click)="limit12.set(true); loadMutasi()">12 Terakhir</button>
+              <button class="btn btn-sm" [class.btn-dark]="!limit12()" [class.btn-neutral]="limit12()" (click)="limit12.set(false); loadMutasi()">Semua Mutasi</button>
               <a class="btn btn-sm btn-outline-danger" [href]="'/report-server/pdf/mutasi?sekolahId=' + auth.selectedSekolahId() + '&sumberDana=' + sumberDana()" target="_blank">
                 <i class="bi bi-file-pdf me-1"></i>Cetak PDF
               </a>

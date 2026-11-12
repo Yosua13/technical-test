@@ -140,7 +140,7 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
     @if (transferModalBku(); as b) {
       <div class="modal-backdrop-custom">
         <div class="modal-dialog-custom" style="max-width: 480px;">
-          <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
             <h6 class="mb-0 fw-bold">Konfirmasi Eksekusi Transfer SPJ CMS Bank DKI</h6>
             <button type="button" class="btn-close" (click)="transferModalBku.set(null)"></button>
           </div>

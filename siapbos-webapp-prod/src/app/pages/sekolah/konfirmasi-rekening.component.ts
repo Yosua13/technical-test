@@ -17,10 +17,7 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
       <div class="col-lg-7">
         <div class="siap-card p-4">
           <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-            <div>
-              <h5 class="fw-bold mb-1">Konfirmasi Rekening Bank DKI &amp; NPWP Sekolah</h5>
-              <small class="text-muted">Validasi akun giro Bank DKI (BOS &amp; BOP) serta NPWP bendahara sekolah sebelum mencairkan dan membelanjakan anggaran.</small>
-            </div>
+            <h6 class="fw-bold mb-0 text-dark">Data Rekening Bank DKI &amp; NPWP Sekolah</h6>
             @if (auth.activeSekolah()?.isRekeningConfirmed) {
               <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
                 <i class="bi bi-patch-check-fill me-1"></i>Terkonfirmasi

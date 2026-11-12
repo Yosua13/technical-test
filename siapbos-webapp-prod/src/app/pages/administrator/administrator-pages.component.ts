@@ -14,21 +14,15 @@ import { DroppingDana, RkasItem } from '../../core/models/siapbos.models';
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe],
   template: `
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div>
-        <h5 class="fw-bold mb-0"><i class="bi bi-cash-coin text-warning me-2"></i>Penerbitan SP2D &amp; Dropping Dana Sekolah</h5>
-        <small class="text-muted">Admin Dinas menyalurkan dana tahap/triwulan ke sekolah, selanjutnya dikonfirmasi oleh Bendahara ke BKU (JO).</small>
-      </div>
-      <div class="d-flex gap-2">
-        <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="filterDana">
-          <option value="ALL">Semua Sumber Dana</option>
-          <option value="BOS">BOS</option>
-          <option value="BOP">BOP</option>
-        </select>
-        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="loadData()">
-          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-        </button>
-      </div>
+    <div class="d-flex justify-content-end align-items-center mb-3 flex-wrap gap-2">
+      <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="filterDana">
+        <option value="ALL">Semua Sumber Dana</option>
+        <option value="BOS">BOS</option>
+        <option value="BOP">BOP</option>
+      </select>
+      <button class="btn btn-sm btn-neutral rounded-pill px-3" (click)="loadData()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      </button>
     </div>
 
     <div class="row g-3">
@@ -105,7 +99,7 @@ import { DroppingDana, RkasItem } from '../../core/models/siapbos.models';
                     <td>{{ d.tanggalDropping | date:'dd/MM/yyyy' }}</td>
                     <td class="fw-semibold">{{ d.sekolah?.namaSekolah || ('Sekolah #' + d.sekolahId) }}</td>
                     <td>
-                      <span class="badge" [class.text-bg-warning]="d.sumberDana === 'BOS'" [class.text-bg-primary]="d.sumberDana === 'BOP'">
+                      <span class="badge-neutral">
                         {{ d.sumberDana }}
                       </span>
                       <span class="ms-1 small">{{ d.kodePeriode }}</span>
@@ -213,12 +207,8 @@ export class DroppingDanaAdminComponent implements OnInit {
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyPipe],
   template: `
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div>
-        <h5 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet text-warning me-2"></i>Konversi &amp; Data Anggaran RKAS</h5>
-        <small class="text-muted">Import Excel RKAS melalui microservice <code>siapbos-uploader (:5006)</code> atau tambah komponen pagu manual.</small>
-      </div>
-      <a class="btn btn-sm btn-outline-success rounded-pill px-3" href="/file-uploader/api/file-uploader/template-rkas" target="_blank">
+    <div class="d-flex justify-content-end align-items-center mb-3 flex-wrap gap-2">
+      <a class="btn btn-sm btn-neutral rounded-pill px-3" href="/file-uploader/api/file-uploader/template-rkas" target="_blank">
         <i class="bi bi-download me-1"></i>Download Template Excel RKAS (.xlsx)
       </a>
     </div>
@@ -494,7 +484,7 @@ export class KonversiRkasComponent implements OnInit {
             @for (p of periodes(); track p.id) {
               <tr>
                 <td>
-                  <span class="badge" [class.text-bg-warning]="p.sumberDana === 'BOS'" [class.text-bg-primary]="p.sumberDana === 'BOP'">{{ p.sumberDana }}</span>
+                  <span class="badge-neutral">{{ p.sumberDana }}</span>
                 </td>
                 <td class="fw-bold">{{ p.kodePeriode }}</td>
                 <td>{{ p.namaPeriode }}</td>
@@ -567,15 +557,15 @@ export class BatasPengajuanComponent implements OnInit {
   template: `
     <ul class="nav nav-pills mb-3 gap-2">
       <li class="nav-item">
-        <button class="nav-link fw-semibold rounded-pill px-4"
-                [class.active]="tab() === 'helpdesk'" [class.bg-warning]="tab() === 'helpdesk'" [class.text-dark]="tab() === 'helpdesk'"
+        <button class="btn btn-sm rounded-pill px-3"
+                [class.btn-dark]="tab() === 'helpdesk'" [class.btn-neutral]="tab() !== 'helpdesk'"
                 (click)="tab.set('helpdesk')">
           <i class="bi bi-headset me-1"></i>Tiket Helpdesk Sekolah ({{ tickets().length }})
         </button>
       </li>
       <li class="nav-item">
-        <button class="nav-link fw-semibold rounded-pill px-4"
-                [class.active]="tab() === 'logs'" [class.bg-warning]="tab() === 'logs'" [class.text-dark]="tab() === 'logs'"
+        <button class="btn btn-sm rounded-pill px-3"
+                [class.btn-dark]="tab() === 'logs'" [class.btn-neutral]="tab() !== 'logs'"
                 (click)="tab.set('logs'); loadLogs()">
           <i class="bi bi-activity me-1"></i>Live Audit Log Integrasi (Bank DKI / DJP / SIPKD / SIMPEG)
         </button>

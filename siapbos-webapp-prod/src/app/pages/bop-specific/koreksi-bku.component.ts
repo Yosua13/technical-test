@@ -14,13 +14,13 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
   template: `
     <app-sekolah-bar sumberDana="BOP" (sekolahChanged)="loadAll()" />
 
-    <div class="alert alert-warning bg-warning bg-opacity-10 border-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div class="small">
-        <i class="bi bi-wrench-adjustable-circle me-1 text-warning-emphasis"></i>
-        <strong>Koreksi BKU &amp; Pembatalan Transfer SPJ (Khusus BOP):</strong>
-        Sekolah dapat mengusulkan revisi kode rekening BAS atau Pembatalan Transfer SPJ Lunas, lalu disetujui oleh <strong>Suku Dinas (SUDIN)</strong>.
+    <div class="siap-card px-3 py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small text-secondary">
+        <i class="bi bi-wrench-adjustable-circle me-1 text-dark"></i>
+        <strong class="text-dark">Koreksi BKU &amp; Pembatalan Transfer SPJ (Khusus BOP):</strong>
+        Sekolah mengusulkan revisi kode rekening BAS atau Pembatalan Transfer SPJ Lunas, lalu disetujui oleh <strong class="text-dark">Suku Dinas (SUDIN)</strong>.
       </div>
-      <button class="btn btn-outline-dark btn-sm py-0 px-2" (click)="switchSudin()">
+      <button class="btn btn-neutral btn-sm py-1 px-3" (click)="switchSudin()">
         Switch Demo ke SUDIN
       </button>
     </div>

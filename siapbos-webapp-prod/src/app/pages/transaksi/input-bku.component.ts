@@ -171,8 +171,8 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
     @if (showSpjModal()) {
       <div class="modal-backdrop-custom">
         <div class="modal-dialog-custom" style="max-width: 920px;">
-          <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
-            <h6 class="mb-0 fw-bold"><i class="bi bi-journal-plus me-2 text-warning"></i>Input Belanja SPJ {{ sumberDana() }} (Terintegrasi RKAS, Bank DKI &amp; DJP)</h6>
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+            <h6 class="mb-0 fw-bold"><i class="bi bi-journal-plus me-2 text-secondary"></i>Input Belanja SPJ {{ sumberDana() }} (Terintegrasi RKAS, Bank DKI &amp; DJP)</h6>
             <button type="button" class="btn-close" (click)="showSpjModal.set(false)"></button>
           </div>
           <div class="modal-body-scroll">
