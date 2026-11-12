@@ -58,21 +58,21 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
       </div>
     }
 
-    <!-- BKU Toolbar & Table (Tanpa Aksi Approval, Jasa Giro, dan Cetak Form 22) -->
+    <!-- BKU Toolbar & Table (Tanpa Aksi Approval) -->
     <div class="siap-card">
       <div class="siap-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="d-flex flex-wrap align-items-center gap-2">
-          <select class="form-select form-select-sm" style="width: 190px;" [ngModel]="filterTrx()" (ngModelChange)="filterTrx.set($event); loadBku()">
+          <select class="form-select form-select-sm" style="width: 195px;" [ngModel]="filterTrx()" (ngModelChange)="filterTrx.set($event); loadBku()">
             <option value="">Semua Kode Trx</option>
-            <option value="JO">JO · Dropping Masuk</option>
-            <option value="JJ">JJ · Belanja SPJ</option>
-            <option value="P1">P1 · Pajak PPh 21</option>
-            <option value="P2">P2 · Pajak PPh 22</option>
-            <option value="P3">P3 · Pajak PPh 23</option>
-            <option value="P4">P4 · Pajak PPh 4(2)</option>
-            <option value="P5">P5 · Pajak PPN</option>
-            <option value="P6">P6 · Pajak PPh 26</option>
-            <option value="P7">P7 · Pajak PPh 15</option>
+            <option value="JO">JO &middot; Dropping Masuk</option>
+            <option value="JJ">JJ &middot; Belanja SPJ</option>
+            <option value="P1">P1 &middot; Pajak PPh 21</option>
+            <option value="P2">P2 &middot; Pajak PPh 22</option>
+            <option value="P3">P3 &middot; Pajak PPh 23</option>
+            <option value="P4">P4 &middot; Pajak PPh 4(2)</option>
+            <option value="P5">P5 &middot; Pajak PPN</option>
+            <option value="P6">P6 &middot; Pajak PPh 26</option>
+            <option value="P7">P7 &middot; Pajak PPh 15</option>
           </select>
           <input type="text" class="form-control form-control-sm" style="width: 240px;"
                  placeholder="Cari No. BKU / Uraian / Rekanan..." [ngModel]="searchText()" (ngModelChange)="searchText.set($event)">
@@ -88,12 +88,12 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
       </div>
 
       <div class="table-responsive">
-        <table class="table table-siap table-hover">
+        <table class="table table-siap table-hover align-middle">
           <thead>
             <tr>
               <th>Tanggal</th>
               <th>No. BKU &amp; Bukti</th>
-              <th>Jenis</th>
+              <th>Jenis Transaksi</th>
               <th>Uraian &amp; Rekanan</th>
               <th class="text-end">Masuk</th>
               <th class="text-end">Bruto Keluar</th>
@@ -113,11 +113,33 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
                 <td>
                   <div class="fw-bold text-dark">{{ b.nomorBku }}</div>
                   <small class="text-muted">{{ b.nomorBukti }}</small>
+                  @if (b.parentNomorBku) {
+                    <div class="small text-primary"><i class="bi bi-link-45deg"></i>Induk: {{ b.parentNomorBku }}</div>
+                  }
                 </td>
-                <td><app-status-badge kind="trx" [value]="b.kodeTrx" /></td>
+                <td>
+                  <div class="d-flex flex-column gap-1 align-items-start">
+                    <div class="d-flex align-items-center gap-1">
+                      <app-status-badge kind="trx" [value]="b.kodeTrx" />
+                      @if (b.kodeTrx === 'JJ') {
+                        @if (b.isVirtualAccount || b.caraPembayaran === 'VA') {
+                          <span class="badge text-bg-info">VA</span>
+                        } @else {
+                          <span class="badge text-bg-secondary">BANK</span>
+                        }
+                      }
+                    </div>
+                    <span class="small fw-semibold text-muted">{{ getJenisLabel(b) }}</span>
+                  </div>
+                </td>
                 <td style="min-width: 220px;">
                   <div class="fw-medium">{{ b.uraian }}</div>
-                  <small class="text-muted">{{ b.namaRekanan }} ({{ b.namaBankRekanan }} {{ b.noRekRekanan }})</small>
+                  <small class="text-muted">
+                    {{ b.namaRekanan || '-' }}
+                    @if (b.noRekRekanan) {
+                      ({{ b.namaBankRekanan }} {{ b.noRekRekanan }})
+                    }
+                  </small>
                 </td>
                 <td class="text-end text-success fw-semibold tabular-nums">
                   {{ b.nilaiBrutoMasuk > 0 ? (b.nilaiBrutoMasuk | currency:'IDR':'symbol':'1.0-0') : '-' }}
@@ -192,7 +214,8 @@ export class InputBkuComponent implements OnInit {
       (b) =>
         b.nomorBku.toLowerCase().includes(q) ||
         b.uraian.toLowerCase().includes(q) ||
-        b.namaRekanan.toLowerCase().includes(q)
+        (b.namaRekanan || '').toLowerCase().includes(q) ||
+        (b.parentNomorBku || '').toLowerCase().includes(q)
     );
   });
 
@@ -206,20 +229,33 @@ export class InputBkuComponent implements OnInit {
     const sekId = this.auth.selectedSekolahId() || 1;
     const thn = this.auth.tahunAnggaran();
     const sd = this.sumberDana();
-    this.api.getSummarySaldo(sekId, thn, sd).subscribe((r) => { if (r.success) this.summary.set(r.data); });
+    this.api.getSummarySaldo(sekId, thn, sd).subscribe((r) => {
+      if (r.success) this.summary.set(r.data);
+    });
     this.loadBku();
   }
 
   loadBku(): void {
     const sekId = this.auth.selectedSekolahId() || 1;
     this.api.getBkuList(sekId, this.auth.tahunAnggaran(), this.sumberDana(), undefined, this.filterTrx() || undefined).subscribe({
-      next: (r) => { if (r.success) this.bkuList.set(r.data); }
+      next: (r) => {
+        if (r.success) this.bkuList.set(r.data);
+      }
     });
+  }
+
+  getJenisLabel(b: BkuTransaction): string {
+    if (b.kodeTrx === 'JO') return 'Dropping Dana (JO)';
+    if (b.kodeTrx === 'JJ') return 'SPJ Belanja';
+    if (b.jenisPembayaran === 'PENGELUARAN') return 'Pengeluaran Pajak';
+    if (b.jenisPembayaran === 'PENERIMAAN') return 'Penerimaan Pajak';
+    return 'Transaksi Pajak';
   }
 
   canEditOrDelete(b: BkuTransaction): boolean {
     return (
       this.auth.hasRole('PK-NEGERI', 'ADMIN-TDI') &&
+      b.kodeTrx !== 'JO' &&
       (b.statusBku === 0 || b.statusBku === 9) &&
       !b.isTutupBuku
     );

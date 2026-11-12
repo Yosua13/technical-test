@@ -73,8 +73,19 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
                 <td>{{ b.tanggalTransaksi | date:'dd/MM/yyyy' }}</td>
                 <td class="fw-bold">{{ b.nomorBku }}</td>
                 <td>
+                  <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                    <span class="badge"
+                          [class.text-bg-primary]="b.kodeTrx === 'JJ'"
+                          [class.text-bg-warning]="b.kodeTrx !== 'JJ'"
+                          [class.text-dark]="b.kodeTrx !== 'JJ'">
+                      {{ b.kodeTrx === 'JJ' ? 'SPJ Belanja (JJ)' : 'Pengeluaran Pajak (' + b.kodeTrx + ')' }}
+                    </span>
+                    @if (b.parentNomorBku) {
+                      <span class="badge bg-light text-dark border">Induk: {{ b.parentNomorBku }}</span>
+                    }
+                  </div>
                   <div class="fw-medium">{{ b.uraian }}</div>
-                  <small class="text-muted">{{ b.namaRekanan }} | {{ b.catatanVerifikasi || '-' }}</small>
+                  <small class="text-muted">{{ b.namaRekanan || '-' }} | {{ b.catatanVerifikasi || '-' }}</small>
                 </td>
                 <td class="text-end tabular-nums">{{ b.nilaiBrutoKeluar | currency:'IDR':'symbol':'1.0-0' }}</td>
                 <td class="text-end tabular-nums">{{ b.totalPotonganPajak | currency:'IDR':'symbol':'1.0-0' }}</td>
@@ -183,8 +194,14 @@ export class PersetujuanBkuComponent implements OnInit {
 
   loadData(): void {
     const sekId = this.auth.selectedSekolahId() || 1;
-    this.api.getBkuList(sekId, this.auth.tahunAnggaran(), this.sumberDana(), undefined, 'JJ').subscribe((res) => {
-      if (res.success) this.items.set(res.data);
+    this.api.getBkuList(sekId, this.auth.tahunAnggaran(), this.sumberDana()).subscribe((res) => {
+      if (res.success) {
+        this.items.set(
+          res.data.filter(
+            (b) => b.kodeTrx === 'JJ' || (b.kodeTrx.startsWith('P') && b.jenisPembayaran === 'PENGELUARAN')
+          )
+        );
+      }
     });
   }
 

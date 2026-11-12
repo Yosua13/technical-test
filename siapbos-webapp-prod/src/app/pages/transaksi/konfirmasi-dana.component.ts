@@ -1,74 +1,120 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { DroppingDana } from '../../core/models/siapbos.models';
 import { SekolahBarComponent } from '../../shared/components/sekolah-bar.component';
+import { StatusBadgeComponent } from '../../shared/components/status-badge.component';
 
 @Component({
   selector: 'app-konfirmasi-dana',
   standalone: true,
-  imports: [CommonModule, CurrencyPipe, DatePipe, SekolahBarComponent],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, SekolahBarComponent, StatusBadgeComponent],
   template: `
     <app-sekolah-bar [sumberDana]="sumberDana()" (sekolahChanged)="loadDropping()" />
 
     <div class="siap-card">
       <div class="siap-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-          <h6 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-down me-2 text-warning"></i>Daftar Penyaluran (Dropping) Dana {{ sumberDana() }}</h6>
-          <small class="text-muted">Konfirmasi dana masuk SP2D untuk otomatis mencatat transaksi Pengisian Kas (JO) ke BKU &amp; menambah saldo sekolah</small>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <input class="form-control form-control-sm" style="width: 190px;" [(ngModel)]="filterSearch" placeholder="Cari No SP2D / PASK...">
+          <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="filterPeriode">
+            <option value="">Semua Triwulan</option>
+            <option value="TW1">Triwulan ke-01 (TW1)</option>
+            <option value="TW2">Triwulan ke-02 (TW2)</option>
+            <option value="TW3">Triwulan ke-03 (TW3)</option>
+            <option value="TW4">Triwulan ke-04 (TW4)</option>
+          </select>
+          <select class="form-select form-select-sm" style="width: auto;" [(ngModel)]="filterStatus">
+            <option [ngValue]="null">Semua Status</option>
+            <option [ngValue]="0">Draft PK</option>
+            <option [ngValue]="1">Diajukan ke TU</option>
+            <option [ngValue]="2">Disetujui TU → PA</option>
+            <option [ngValue]="3">Disetujui PA → Dinas/Sudin</option>
+            <option [ngValue]="4">Disetujui &amp; Cair BKU</option>
+            <option [ngValue]="9">Ditolak</option>
+          </select>
+          <button class="btn btn-sm btn-success px-3" (click)="loadDropping()">
+            <i class="bi bi-search me-1"></i>Cari
+          </button>
+          @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+            <button class="btn btn-sm btn-primary px-3" (click)="goTambah()">
+              <i class="bi bi-plus-lg me-1"></i>Tambah
+            </button>
+          }
         </div>
-        <button class="btn btn-sm btn-outline-secondary" (click)="loadDropping()">
-          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-        </button>
+        <span class="badge badge-neutral rounded-pill px-3">{{ auth.currentUser()?.roleCode }}</span>
       </div>
 
       <div class="table-responsive">
-        <table class="table table-siap table-hover">
+        <table class="table table-siap table-hover mb-0">
           <thead>
             <tr>
+              <th class="text-center" style="width: 48px;">No</th>
+              <th>Tanggal</th>
               <th>No. SP2D</th>
+              <th>PASK / Sekolah</th>
               <th>Periode</th>
-              <th>Tanggal Dropping</th>
-              <th>Keterangan</th>
               <th class="text-end">Nilai Dropping</th>
-              <th>Status BKU</th>
+              <th>Status</th>
               <th class="text-end">Aksi</th>
             </tr>
           </thead>
           <tbody>
             @if (items().length === 0) {
               <tr>
-                <td colspan="7" class="text-center py-4 text-muted">Belum ada data dropping dana untuk sekolah ini.</td>
+                <td colspan="8" class="text-center py-4 text-muted">Belum ada data dropping dana untuk filter terpilih.</td>
               </tr>
             }
-            @for (d of items(); track d.id) {
+            @for (d of items(); track d.id; let idx = $index) {
               <tr>
+                <td class="text-center">{{ idx + 1 }}</td>
+                <td class="text-nowrap">{{ d.tanggalDropping | date:'dd/MM/yyyy' }}</td>
                 <td class="fw-bold text-primary">{{ d.nomorSp2d }}</td>
-                <td><span class="badge bg-light text-dark border">{{ d.kodePeriode }} · {{ d.namaPeriode }}</span></td>
-                <td>{{ d.tanggalDropping | date:'dd MMM yyyy' }}</td>
-                <td>{{ d.keterangan }}</td>
-                <td class="text-end fw-bold text-success tabular-nums">{{ d.nilaiDropping | currency:'IDR':'symbol':'1.0-0' }}</td>
                 <td>
-                  @if (d.isConfirmedToBku) {
-                    <span class="badge rounded-pill text-bg-success"><i class="bi bi-check-circle me-1"></i>Sudah Masuk BKU (JO)</span>
-                  } @else {
-                    <span class="badge rounded-pill text-bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Menunggu Konfirmasi PK</span>
-                  }
+                  <div class="fw-medium">{{ d.namaPask || d.keterangan }}</div>
+                  <small class="text-muted">{{ d.sekolah?.namaSekolah || '-' }}</small>
                 </td>
-                <td class="text-end">
-                  @if (!d.isConfirmedToBku) {
-                    <button class="btn btn-sm btn-siap rounded-pill px-3" [disabled]="processingId() === d.id" (click)="confirm(d)">
-                      @if (processingId() === d.id) {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                      }
-                      <i class="bi bi-check2-circle me-1"></i>Konfirmasi Masuk BKU
+                <td><span class="badge bg-light text-dark border">{{ d.kodePeriode }} · {{ d.namaPeriode }}</span></td>
+                <td class="text-end fw-bold text-success tabular-nums">{{ d.nilaiDropping | currency:'IDR':'symbol':'1.0-0' }}</td>
+                <td><app-status-badge kind="npd" [value]="d.statusDropping" /></td>
+                <td class="text-end text-nowrap">
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" (click)="goDetail(d)">
+                      <i class="bi bi-list-ul me-1"></i>Detail
                     </button>
-                  } @else {
-                    <span class="text-muted small">Terkonfirmasi {{ d.tanggalKonfirmasi | date:'dd/MM/yy' }}</span>
-                  }
+                    @if (d.statusDropping === 0 && auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                      <button class="btn btn-siap" (click)="ajukan(d)">
+                        <i class="bi bi-send me-1"></i>Ajukan
+                      </button>
+                    }
+                    @if (d.statusDropping === 1 && auth.hasRole('TU-NEGERI', 'ADMIN-TDI')) {
+                      <button class="btn btn-primary" (click)="approveTu(d, true)">
+                        <i class="bi bi-check-lg me-1"></i>Setuju TU
+                      </button>
+                      <button class="btn btn-outline-danger" (click)="approveTu(d, false)">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    }
+                    @if (d.statusDropping === 2 && auth.hasRole('PA-NEGERI', 'ADMIN-TDI')) {
+                      <button class="btn btn-primary" (click)="approvePa(d, true)">
+                        <i class="bi bi-check-lg me-1"></i>Setuju PA
+                      </button>
+                      <button class="btn btn-outline-danger" (click)="approvePa(d, false)">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    }
+                    @if (d.statusDropping === 3 && ((sumberDana() === 'BOS' && auth.hasRole('ADMIN-DINAS', 'ADMIN-TDI')) || (sumberDana() === 'BOP' && auth.hasRole('SUDIN', 'ADMIN-DINAS', 'ADMIN-TDI')))) {
+                      <button class="btn btn-success" (click)="approveDinas(d, true)">
+                        <i class="bi bi-check2-all me-1"></i>Setuju {{ sumberDana() === 'BOS' ? 'Dinas' : 'Sudin' }}
+                      </button>
+                      <button class="btn btn-outline-danger" (click)="approveDinas(d, false)">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -80,13 +126,17 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
 })
 export class KonfirmasiDanaComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly api = inject(SiapBosApiService);
   private readonly toast = inject(ToastService);
 
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
   readonly items = signal<DroppingDana[]>([]);
-  readonly processingId = signal<number | null>(null);
+
+  filterPeriode = '';
+  filterStatus: number | null = null;
+  filterSearch = '';
 
   ngOnInit(): void {
     this.sumberDana.set((this.route.snapshot.data['sumberDana'] as 'BOS' | 'BOP') || 'BOS');
@@ -94,26 +144,56 @@ export class KonfirmasiDanaComponent implements OnInit {
   }
 
   loadDropping(): void {
-    const sekId = this.auth.selectedSekolahId() || 1;
-    this.api.getDroppingSekolah(sekId, this.auth.tahunAnggaran(), this.sumberDana()).subscribe({
-      next: (res) => {
-        if (res.success) this.items.set(res.data);
-      }
+    const isMulti = this.auth.hasRole('ADMIN-DINAS', 'SUDIN', 'ADMIN-TDI');
+    const sekId = this.auth.selectedSekolahId() || (isMulti ? 0 : 1);
+    this.api
+      .getDroppingSekolah(sekId, this.auth.tahunAnggaran(), this.sumberDana(), {
+        kodePeriode: this.filterPeriode || undefined,
+        status: this.filterStatus,
+        search: this.filterSearch || undefined
+      })
+      .subscribe({
+        next: (res) => { if (res.success) this.items.set(res.data || []); }
+      });
+  }
+
+  goTambah(): void {
+    this.router.navigate(['tambah'], { relativeTo: this.route });
+  }
+
+  goDetail(d: DroppingDana): void {
+    this.router.navigate(['detail', d.id], { relativeTo: this.route });
+  }
+
+  ajukan(d: DroppingDana): void {
+    this.api.ajukanDropping(d.id, this.sumberDana()).subscribe({
+      next: (res) => { this.toast.success(res.message); this.loadDropping(); },
+      error: (err) => this.toast.error(err?.error?.message || 'Gagal mengajukan Dropping.')
     });
   }
 
-  confirm(d: DroppingDana): void {
-    this.processingId.set(d.id);
-    this.api.confirmDropping(d.id, this.sumberDana()).subscribe({
+  approveTu(d: DroppingDana, ok: boolean): void {
+    this.api.approveDroppingTu(d.id, this.sumberDana(), ok).subscribe({
+      next: (res) => { this.toast.success(res.message); this.loadDropping(); },
+      error: (err) => this.toast.error(err?.error?.message || 'Gagal approval TU.')
+    });
+  }
+
+  approvePa(d: DroppingDana, ok: boolean): void {
+    this.api.approveDroppingPa(d.id, this.sumberDana(), ok).subscribe({
+      next: (res) => { this.toast.success(res.message); this.loadDropping(); },
+      error: (err) => this.toast.error(err?.error?.message || 'Gagal approval PA.')
+    });
+  }
+
+  approveDinas(d: DroppingDana, ok: boolean): void {
+    this.api.approveDroppingDinas(d.id, this.sumberDana(), ok).subscribe({
       next: (res) => {
-        this.processingId.set(null);
-        if (res.success) {
-          this.toast.success(`Dropping ${d.nomorSp2d} (Rp ${d.nilaiDropping.toLocaleString('id-ID')}) berhasil masuk BKU!`);
-          this.loadDropping();
-          this.auth.loadSekolahOptions().subscribe();
-        }
+        this.toast.success(res.message);
+        this.loadDropping();
+        this.auth.loadSekolahOptions().subscribe();
       },
-      error: () => this.processingId.set(null)
+      error: (err) => this.toast.error(err?.error?.message || 'Gagal approval Dinas.')
     });
   }
 }

@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { switchMap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -13,6 +14,7 @@ interface TaxRow extends BkuTaxItem {
   bkuNomor: string;
   bkuUraian: string;
   bkuStatus: number;
+  parentNomorBku?: string | null;
 }
 
 @Component({
@@ -24,25 +26,32 @@ interface TaxRow extends BkuTaxItem {
 
     <div class="siap-card p-3 mb-3 bg-info bg-opacity-10 border-info small">
       <i class="bi bi-receipt-cutoff me-1 text-info-emphasis"></i>
-      <strong>Alur Integrasi Pajak DJP / MPN G3:</strong>
-      <strong>1. Buat Kode Billing (15 digit)</strong> → <strong>2. Inquiry Tagihan MPN</strong> → <strong>3. Bayar Pajak</strong> (menerbitkan <strong>NTPN &amp; NTB</strong> dan memotong saldo rekening sekolah) → <strong>4. Cetak BPN PDF</strong>.
+      <strong>Alur Penyetoran Pengeluaran Pajak DJP / MPN G3 (2 Tahap):</strong>
+      Hanya menampilkan transaksi <strong>Pengeluaran Pajak</strong> yang sudah <strong>Disetujui PA</strong>.
+      <strong>1. Proses Billing</strong> (terbitkan 15-digit Kode Billing) &rarr;
+      <strong>2. Transfer Pajak</strong> (Inquiry Tagihan + Bayar MPN &rarr; menerbitkan <strong>NTPN &amp; NTB</strong> &amp; menandai Lunas).
     </div>
 
     <div class="siap-card">
-      <div class="siap-card-header d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-warning"></i>Daftar Pemungutan &amp; Penyetoran Pajak {{ sumberDana() }}</h6>
-        <a class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold"
-           [href]="'/report-server/pdf/form25?sekolahId=' + auth.selectedSekolahId() + '&tahun=' + auth.tahunAnggaran() + '&sumberDana=' + sumberDana()"
-           target="_blank">
-          <i class="bi bi-file-earmark-pdf me-1"></i>Cetak Form 25 Pajak
-        </a>
+      <div class="siap-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h6 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-warning"></i>Daftar Penyetoran Pengeluaran Pajak {{ sumberDana() }}</h6>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" (click)="loadData()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
+          <a class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold"
+             [href]="'/report-server/pdf/form25?sekolahId=' + auth.selectedSekolahId() + '&tahun=' + auth.tahunAnggaran() + '&sumberDana=' + sumberDana()"
+             target="_blank">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Cetak Form 25 Pajak
+          </a>
+        </div>
       </div>
 
       <div class="table-responsive">
-        <table class="table table-siap table-hover">
+        <table class="table table-siap table-hover align-middle">
           <thead>
             <tr>
-              <th>No. BKU Induk</th>
+              <th>No. BKU Pengeluaran Pajak</th>
               <th>Jenis Pajak &amp; MAP</th>
               <th class="text-end">Nilai Pajak</th>
               <th>Kode Billing DJP</th>
@@ -53,18 +62,25 @@ interface TaxRow extends BkuTaxItem {
           </thead>
           <tbody>
             @if (taxRows().length === 0) {
-              <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada potongan pajak pada transaksi BKU.</td></tr>
+              <tr>
+                <td colspan="7" class="text-center py-4 text-muted">
+                  Belum ada transaksi <strong>Pengeluaran Pajak</strong> yang disetujui Kepala Sekolah (PA).
+                </td>
+              </tr>
             }
             @for (t of taxRows(); track t.id) {
               <tr>
                 <td>
                   <div class="fw-bold">{{ t.bkuNomor }}</div>
-                  <small class="text-muted d-block" style="max-width: 220px;">{{ t.bkuUraian }}</small>
+                  <small class="text-muted d-block" style="max-width: 240px;">{{ t.bkuUraian }}</small>
+                  @if (t.parentNomorBku) {
+                    <small class="text-primary d-block">Induk Penerimaan: {{ t.parentNomorBku }}</small>
+                  }
                 </td>
                 <td>
                   <span class="badge text-bg-light border fw-bold me-1">{{ t.kodeTrxPajak }}</span>
                   <span class="fw-semibold">{{ t.namaPajak }}</span>
-                  <div class="text-muted small">MAP {{ t.kodeMap }} · KJS {{ t.kodeJenisSetoran }} · Masa {{ t.masaPajak }}/{{ t.tahunPajak }}</div>
+                  <div class="text-muted small">MAP {{ t.kodeMap }} &middot; KJS {{ t.kodeJenisSetoran }} &middot; Masa {{ t.masaPajak }}/{{ t.tahunPajak }}</div>
                 </td>
                 <td class="text-end fw-bold tabular-nums">{{ t.nilaiPajak | currency:'IDR':'symbol':'1.0-0' }}</td>
                 <td>
@@ -89,22 +105,32 @@ interface TaxRow extends BkuTaxItem {
                     <button class="btn btn-sm btn-outline-secondary" title="Lihat Detail BKU" (click)="goToDetail(t.bkuId)">
                       <i class="bi bi-eye me-1"></i>Detail
                     </button>
-                    @if (t.statusPajak === 0) {
+
+                    @if ((t.statusPajak ?? 0) === 0) {
                       @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
-                        <button class="btn btn-sm btn-warning fw-semibold" (click)="runAction(t, 'create')">
-                          <i class="bi bi-qr-code me-1"></i>Buat Kode Billing
+                        <button class="btn btn-sm btn-warning fw-semibold"
+                                [disabled]="processingId() === t.id"
+                                (click)="prosesBilling(t)">
+                          <i class="bi bi-qr-code me-1"></i>1. Proses Billing
                         </button>
                       } @else {
                         <span class="badge bg-light text-secondary border">Menunggu PK</span>
                       }
-                    } @else if (t.statusPajak === 1) {
+                    } @else if ((t.statusPajak ?? 0) === 1) {
                       @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
                         <div class="btn-group btn-group-sm">
-                          <button class="btn btn-outline-info" (click)="runAction(t, 'inquiry')">Inquiry</button>
-                          <button class="btn btn-siap" (click)="runAction(t, 'payment')" [disabled]="t.bkuStatus < 3">
-                            <i class="bi bi-cash-stack me-1"></i>Bayar NTPN
+                          <button class="btn btn-siap fw-semibold"
+                                  [disabled]="processingId() === t.id"
+                                  (click)="transferPajak(t)">
+                            @if (processingId() === t.id) {
+                              <span class="spinner-border spinner-border-sm me-1"></span>Transfer...
+                            } @else {
+                              <i class="bi bi-cash-stack me-1"></i>2. Transfer Pajak
+                            }
                           </button>
-                          <button class="btn btn-outline-secondary" title="Reset Billing" (click)="runAction(t, 'reset')">
+                          <button class="btn btn-outline-secondary" title="Reset Kode Billing"
+                                  [disabled]="processingId() === t.id"
+                                  (click)="resetBilling(t)">
                             <i class="bi bi-arrow-counterclockwise"></i>
                           </button>
                         </div>
@@ -136,17 +162,22 @@ export class PembayaranPajakComponent implements OnInit {
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
   readonly basePath = computed(() => (this.sumberDana() === 'BOP' ? '/bku-bop' : '/bos-negeri'));
   readonly bkus = signal<BkuTransaction[]>([]);
+  readonly processingId = signal<number | null>(null);
 
   readonly taxRows = computed<TaxRow[]>(() => {
     const rows: TaxRow[] = [];
     for (const b of this.bkus()) {
+      if (b.jenisPembayaran !== 'PENGELUARAN' || b.statusBku < 3 || b.statusBku === 9) {
+        continue;
+      }
       for (const t of b.taxItems || []) {
         rows.push({
           ...t,
           bkuId: b.id,
           bkuNomor: b.nomorBku,
           bkuUraian: b.uraian,
-          bkuStatus: b.statusBku
+          bkuStatus: b.statusBku,
+          parentNomorBku: b.parentNomorBku
         });
       }
     }
@@ -160,18 +191,67 @@ export class PembayaranPajakComponent implements OnInit {
 
   loadData(): void {
     const sekId = this.auth.selectedSekolahId() || 1;
-    this.api.getBkuList(sekId, this.auth.tahunAnggaran(), this.sumberDana(), undefined, 'JJ').subscribe((res) => {
-      if (res.success) this.bkus.set(res.data);
+    this.api.getBkuList(sekId, this.auth.tahunAnggaran(), this.sumberDana()).subscribe((res) => {
+      if (res.success) this.bkus.set(res.data || []);
     });
   }
 
-  runAction(t: TaxRow, action: 'create' | 'reset' | 'inquiry' | 'payment'): void {
+  prosesBilling(t: TaxRow): void {
     if (!t.id) return;
-    this.api.processTaxAction(this.sumberDana(), t.id, action).subscribe((res) => {
-      if (res.success) {
-        this.toast.success(res.message);
-        this.loadData();
-        if (action === 'payment') this.auth.loadSekolahOptions().subscribe();
+    this.processingId.set(t.id);
+    this.api.processTaxAction(this.sumberDana(), t.id, 'create').subscribe({
+      next: (res) => {
+        this.processingId.set(null);
+        if (res.success) {
+          this.toast.success(res.message || 'Kode Billing DJP berhasil dibuat.');
+          this.loadData();
+        }
+      },
+      error: (err) => {
+        this.processingId.set(null);
+        this.toast.error(err?.error?.message || 'Gagal membuat Kode Billing.');
+      }
+    });
+  }
+
+  transferPajak(t: TaxRow): void {
+    if (!t.id) return;
+    const taxId = t.id;
+    const sd = this.sumberDana();
+    this.processingId.set(taxId);
+    this.api
+      .processTaxAction(sd, taxId, 'inquiry')
+      .pipe(switchMap(() => this.api.processTaxAction(sd, taxId, 'payment')))
+      .subscribe({
+        next: (res) => {
+          this.processingId.set(null);
+          if (res.success) {
+            this.toast.success(res.message || 'Transfer Pajak MPN G3 berhasil & NTPN diterbitkan.');
+            this.loadData();
+            this.auth.loadSekolahOptions().subscribe();
+          }
+        },
+        error: (err) => {
+          this.processingId.set(null);
+          this.toast.error(err?.error?.message || 'Gagal memproses Transfer Pajak MPN.');
+        }
+      });
+  }
+
+  resetBilling(t: TaxRow): void {
+    if (!t.id) return;
+    this.processingId.set(t.id);
+    this.api.processTaxAction(this.sumberDana(), t.id, 'reset').subscribe({
+      next: (res) => {
+        this.processingId.set(null);
+        if (res.success) {
+          this.toast.success(res.message || 'Kode Billing di-reset.');
+          this.loadData();
+        }
+      },
+      error: (err) => {
+        this.processingId.set(null);
+        this.toast.error(err?.error?.message || 'Gagal reset Kode Billing.');
       }
     });
   }
