@@ -24,6 +24,13 @@ import { AuthService } from '../../core/services/auth.service';
                   <option [ngValue]="s.id">{{ s.namaSekolah }} ({{ s.npsn }})</option>
                 }
               </select>
+              @if (auth.requiresSchoolPicker()) {
+                <button type="button"
+                        class="btn btn-sm btn-outline-warning rounded-pill px-3 text-dark fw-semibold"
+                        (click)="auth.openSekolahPicker()">
+                  <i class="bi bi-table me-1"></i>DataTables Sekolah
+                </button>
+              }
             </div>
           } @else {
             <div class="fw-bold fs-6 text-dark">
@@ -34,11 +41,6 @@ import { AuthService } from '../../core/services/auth.service';
           <div class="text-muted small mt-1">
             {{ auth.activeSekolah()?.namaSudin }} ·
             Rek. {{ sumberDana() }}: <span class="fw-semibold text-dark">{{ sumberDana() === 'BOS' ? auth.activeSekolah()?.noRekBos : auth.activeSekolah()?.noRekBop }}</span> (Bank DKI)
-            @if (auth.activeSekolah()?.isRekeningConfirmed) {
-              <span class="badge bg-success-subtle text-success ms-1"><i class="bi bi-patch-check-fill me-1"></i>Rekening Terkonfirmasi</span>
-            } @else {
-              <span class="badge bg-danger-subtle text-danger ms-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Belum Konfirmasi Rekening</span>
-            }
           </div>
         </div>
       </div>

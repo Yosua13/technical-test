@@ -5,13 +5,14 @@ import {
   ApiResponse,
   BankMutation,
   BapKasReport,
-  BkuCorrection,
+  BatalTransferSpj,
   BkuSummarySaldo,
   BkuTaxItem,
   BkuTransaction,
   DroppingDana,
   NpdBop,
   RkasItem,
+  SaveBatalTransferRequest,
   Sekolah,
   SetoranSts
 } from '../models/siapbos.models';
@@ -85,8 +86,16 @@ export class SiapBosApiService {
     return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/input-spj`, { params });
   }
 
+  getBkuDetail(sumberDana: string, bkuId: number): Observable<ApiResponse<BkuTransaction>> {
+    return this.http.get<ApiResponse<BkuTransaction>>(`${this.prefix(sumberDana)}/input-spj/${bkuId}`);
+  }
+
   createBku(sumberDana: string, payload: any): Observable<ApiResponse<BkuTransaction>> {
     return this.http.post<ApiResponse<BkuTransaction>>(`${this.prefix(sumberDana)}/input-spj`, payload);
+  }
+
+  updateBku(sumberDana: string, bkuId: number, payload: any): Observable<ApiResponse<BkuTransaction>> {
+    return this.http.put<ApiResponse<BkuTransaction>>(`${this.prefix(sumberDana)}/input-spj/${bkuId}`, payload);
   }
 
   deleteDraftBku(sumberDana: string, bkuId: number): Observable<ApiResponse<string>> {
@@ -203,16 +212,88 @@ export class SiapBosApiService {
     return this.http.post<ApiResponse<any>>(`/api-bop/npd/${id}/approve-sudin`, { disetujui, catatan });
   }
 
-  getKoreksiBop(sekolahId: number, sumberDana = 'BOP'): Observable<ApiResponse<BkuCorrection[]>> {
-    return this.http.get<ApiResponse<BkuCorrection[]>>('/api-bop/koreksi', { params: { sekolahId, sumberDana } });
+  // Batal Transfer SPJ (BOS & BOP - 4-Stage Approval: PK -> TU -> PA -> SUDIN)
+  getBatalTransferCandidates(
+    sumberDana: string,
+    sekolahId: number,
+    tahun: number,
+    filters?: { noMohon?: string; noBukti?: string; kegiatan?: string }
+  ): Observable<ApiResponse<BkuTransaction[]>> {
+    const params: any = { sekolahId, tahun };
+    if (filters?.noMohon) params.noMohon = filters.noMohon;
+    if (filters?.noBukti) params.noBukti = filters.noBukti;
+    if (filters?.kegiatan) params.kegiatan = filters.kegiatan;
+    return this.http.get<ApiResponse<BkuTransaction[]>>(`${this.prefix(sumberDana)}/batal-transfer/spj-candidates`, { params });
   }
 
-  createKoreksiBop(payload: any): Observable<ApiResponse<BkuCorrection>> {
-    return this.http.post<ApiResponse<BkuCorrection>>('/api-bop/koreksi', payload);
+  getBatalTransfers(
+    sumberDana: string,
+    sekolahId: number,
+    tahun: number,
+    filters?: { kodePeriode?: string; status?: number | null; nomorBkuMohon?: string }
+  ): Observable<ApiResponse<BatalTransferSpj[]>> {
+    const params: any = { sekolahId, tahun };
+    if (filters?.kodePeriode) params.kodePeriode = filters.kodePeriode;
+    if (filters?.status !== undefined && filters?.status !== null) params.status = filters.status;
+    if (filters?.nomorBkuMohon) params.nomorBkuMohon = filters.nomorBkuMohon;
+    return this.http.get<ApiResponse<BatalTransferSpj[]>>(`${this.prefix(sumberDana)}/batal-transfer`, { params });
   }
 
-  approveKoreksiSudin(id: number, disetujui: boolean): Observable<ApiResponse<BkuCorrection>> {
-    return this.http.post<ApiResponse<BkuCorrection>>(`/api-bop/koreksi/${id}/approve-sudin`, { disetujui });
+  getBatalTransferDetail(sumberDana: string, id: number): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.get<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`);
+  }
+
+  createBatalTransfer(sumberDana: string, payload: SaveBatalTransferRequest): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer`, payload);
+  }
+
+  updateBatalTransfer(sumberDana: string, id: number, payload: SaveBatalTransferRequest): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.put<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`, payload);
+  }
+
+  deleteBatalTransfer(sumberDana: string, id: number): Observable<ApiResponse<string>> {
+    return this.http.delete<ApiResponse<string>>(`${this.prefix(sumberDana)}/batal-transfer/${id}`);
+  }
+
+  ajukanBatalTransferPk(sumberDana: string, id: number, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/ajukan-pk`, { disetujui: true, catatan });
+  }
+
+  approveBatalTransferTu(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-tu`, { disetujui, catatan });
+  }
+
+  approveBatalTransferPa(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-pa`, { disetujui, catatan });
+  }
+
+  approveBatalTransferSudin(sumberDana: string, id: number, disetujui: boolean, catatan?: string): Observable<ApiResponse<BatalTransferSpj>> {
+    return this.http.post<ApiResponse<BatalTransferSpj>>(`${this.prefix(sumberDana)}/batal-transfer/${id}/approve-sudin`, { disetujui, catatan });
+  }
+
+  // Report PDF Blob Downloads (for inline PDF viewer / download)
+  getLaporanPdfBlob(params: {
+    sekolahId: number;
+    tahun: number;
+    sumberDana: string;
+    jenisLaporan: string;
+    jenisPeriode: string;
+    waktuPeriode: string;
+  }): Observable<Blob> {
+    return this.http.get('/report-server/pdf/laporan', { params: params as any, responseType: 'blob' });
+  }
+
+  getMutasiPdfBlob(params: {
+    sekolahId: number;
+    sumberDana: string;
+    limit12: boolean;
+    startDate?: string;
+    endDate?: string;
+  }): Observable<Blob> {
+    const q: any = { sekolahId: params.sekolahId, sumberDana: params.sumberDana, limit12: params.limit12 };
+    if (params.startDate) q.startDate = params.startDate;
+    if (params.endDate) q.endDate = params.endDate;
+    return this.http.get('/report-server/pdf/mutasi', { params: q, responseType: 'blob' });
   }
 
   // Admin & User Management
@@ -238,8 +319,25 @@ export class SiapBosApiService {
     return this.http.put<ApiResponse<any>>(`/api/helpdesk/${id}/respond`, { tanggapanAdmin, status });
   }
 
-  getUsers(): Observable<ApiResponse<any[]>> {
-    return this.http.get<ApiResponse<any[]>>('/auth-server/api/pengguna');
+  // User Management & RBAC (PostgreSQL relational via auth-server)
+  getUsers(filters?: {
+    search?: string;
+    nama?: string;
+    email?: string;
+    nip?: string;
+    nrk?: string;
+    otoritas?: string;
+    jenjang?: string;
+  }): Observable<ApiResponse<any[]>> {
+    const params: any = {};
+    if (filters?.search) params.search = filters.search;
+    if (filters?.nama) params.nama = filters.nama;
+    if (filters?.email) params.email = filters.email;
+    if (filters?.nip) params.nip = filters.nip;
+    if (filters?.nrk) params.nrk = filters.nrk;
+    if (filters?.otoritas) params.otoritas = filters.otoritas;
+    if (filters?.jenjang) params.jenjang = filters.jenjang;
+    return this.http.get<ApiResponse<any[]>>('/auth-server/api/pengguna', { params });
   }
 
   createUser(payload: any): Observable<ApiResponse<any>> {
@@ -250,6 +348,50 @@ export class SiapBosApiService {
     return this.http.put<ApiResponse<any>>(`/auth-server/api/pengguna/${id}`, payload);
   }
 
+  deleteUser(id: number): Observable<ApiResponse<string>> {
+    return this.http.delete<ApiResponse<string>>(`/auth-server/api/pengguna/${id}`);
+  }
+
+  setUsersLock(userIds: number[], flag: boolean): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>('/auth-server/api/pengguna/set-lock', { userIds, flag });
+  }
+
+  setUsersAktif(userIds: number[], flag: boolean): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>('/auth-server/api/pengguna/set-aktif', { userIds, flag });
+  }
+
+  resetUserPassword(id: number, sandiBaru: string): Observable<ApiResponse<string>> {
+    return this.http.put<ApiResponse<string>>(`/auth-server/api/pengguna/${id}/reset-password`, { sandiBaru });
+  }
+
+  cekSimpeg(nrk: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`/auth-server/api/pengguna/cek-simpeg/${encodeURIComponent(nrk)}`);
+  }
+
+  getPenggunaOtoritas(id: number): Observable<ApiResponse<{ assigned: any[]; available: any[] }>> {
+    return this.http.get<ApiResponse<{ assigned: any[]; available: any[] }>>(`/auth-server/api/pengguna/${id}/otoritas`);
+  }
+
+  savePenggunaOtoritas(id: number, roleIds: number[]): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/pengguna/${id}/otoritas`, { roleIds });
+  }
+
+  getPenggunaSekolah(id: number): Observable<ApiResponse<{ assigned: Sekolah[]; available: Sekolah[] }>> {
+    return this.http.get<ApiResponse<{ assigned: Sekolah[]; available: Sekolah[] }>>(`/auth-server/api/pengguna/${id}/sekolah`);
+  }
+
+  savePenggunaSekolah(id: number, sekolahIds: number[]): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/pengguna/${id}/sekolah`, { sekolahIds });
+  }
+
+  getPenggunaWilayah(id: number): Observable<ApiResponse<{ assigned: any[]; available: any[] }>> {
+    return this.http.get<ApiResponse<{ assigned: any[]; available: any[] }>>(`/auth-server/api/pengguna/${id}/wilayah`);
+  }
+
+  savePenggunaWilayah(id: number, kodeWilayahList: string[]): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/pengguna/${id}/wilayah`, { kodeWilayahList });
+  }
+
   updateSekolah(id: number, payload: any): Observable<ApiResponse<Sekolah>> {
     return this.http.put<ApiResponse<Sekolah>>(`/auth-server/api/master/sekolah/${id}`, payload);
   }
@@ -258,14 +400,56 @@ export class SiapBosApiService {
     return this.http.get<ApiResponse<any[]>>('/auth-server/api/otoritas');
   }
 
+  createOtoritas(payload: any): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>('/auth-server/api/otoritas', payload);
+  }
+
+  updateOtoritas(id: number, payload: any): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/otoritas/${id}`, payload);
+  }
+
+  deleteOtoritas(id: number): Observable<ApiResponse<string>> {
+    return this.http.delete<ApiResponse<string>>(`/auth-server/api/otoritas/${id}`);
+  }
+
+  getOtoritasAplikasi(id: number): Observable<ApiResponse<{ assigned: any[]; available: any[] }>> {
+    return this.http.get<ApiResponse<{ assigned: any[]; available: any[] }>>(`/auth-server/api/otoritas/${id}/aplikasi`);
+  }
+
+  saveOtoritasAplikasi(id: number, moduleIds: number[]): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/otoritas/${id}/aplikasi`, { moduleIds });
+  }
+
+  getOtoritasMenu(id: number, kodeAplikasi?: string): Observable<ApiResponse<{ kodeAplikasi: string; assignedModules: any[]; assigned: any[]; available: any[] }>> {
+    const params: any = {};
+    if (kodeAplikasi) params.kodeAplikasi = kodeAplikasi;
+    return this.http.get<ApiResponse<any>>(`/auth-server/api/otoritas/${id}/menu`, { params });
+  }
+
+  saveOtoritasMenu(id: number, kodeAplikasi: string, menuIds: number[]): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/otoritas/${id}/menu`, { kodeAplikasi, menuIds });
+  }
+
   getAplikasi(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>('/auth-server/api/aplikasi');
+  }
+
+  updateAplikasi(id: number, payload: any): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/aplikasi/${id}`, payload);
   }
 
   getMenus(kodeAplikasi?: string): Observable<ApiResponse<any[]>> {
     const params: any = {};
     if (kodeAplikasi) params.kodeAplikasi = kodeAplikasi;
     return this.http.get<ApiResponse<any[]>>('/auth-server/api/menu', { params });
+  }
+
+  createMenu(payload: any): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>('/auth-server/api/menu', payload);
+  }
+
+  updateMenu(id: number, payload: any): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`/auth-server/api/menu/${id}`, payload);
   }
 
   // Uploaders

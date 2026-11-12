@@ -39,18 +39,25 @@ export interface UserProfile {
   nip: string;
   email: string;
   noHp: string;
-  roleCode: 'ADMIN-DINAS' | 'SUDIN' | 'PA-NEGERI' | 'TU-NEGERI' | 'PK-NEGERI' | string;
+  roleCode: 'ADMIN-TDI' | 'ADMIN-DINAS' | 'SUDIN' | 'PA-NEGERI' | 'TU-NEGERI' | 'PK-NEGERI' | string;
+  shortCode?: string;
   roleName: string;
+  roles?: string[];
+  requiresSchoolPicker?: boolean;
   jabatan: string;
   wilayahSudin: string;
   sekolahId?: number | null;
+  isActive?: boolean;
+  isLocked?: boolean;
   sekolah?: Sekolah | null;
 }
 
 export interface AppMenu {
+  id?: number;
   nama: string;
   link: string;
   icon: string;
+  requiresSekolah?: boolean;
   allowedRoles: string[];
 }
 
@@ -133,7 +140,7 @@ export interface BkuTransaction {
   nomorBku: string;
   nomorBukti: string;
   tanggalTransaksi: string;
-  kodeTrx: 'JO' | 'JJ' | 'JG' | 'LL' | 'ST' | string;
+  kodeTrx: 'JO' | 'JJ' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | string;
   jenisPembayaran: string;
   uraian: string;
   nilaiBrutoMasuk: number;
@@ -153,6 +160,12 @@ export interface BkuTransaction {
   statusBku: number; // 0 Draft, 1 DiajukanTU, 2 DisetujuiTU, 3 DisetujuiPA, 4 DisetujuiSudin, 5 Lunas, 9 Ditolak
   needSudinApproval: boolean;
   catatanVerifikasi?: string;
+  submittedAt?: string;
+  approvedByTuAt?: string;
+  approvedByPaAt?: string;
+  approvedBySudinAt?: string;
+  createdBy?: string;
+  createdAt?: string;
   tokenOtpPa?: string;
   tokenExpiredAt?: string;
   tokenCreatedByNrk?: string;
@@ -271,18 +284,53 @@ export interface SetoranSts {
   statusSts: number;
 }
 
-export interface BkuCorrection {
+export interface BatalTransferSpj {
   id: number;
   bkuTransactionId: number;
   bkuTransaction?: BkuTransaction;
   sekolahId: number;
+  sekolah?: Sekolah;
+  tahunAnggaran: number;
   sumberDana: string;
-  jenisKoreksi: string;
-  nilaiSebelum: number;
-  nilaiSesudah: number;
-  kodeAkunSebelum?: string;
-  kodeAkunSesudah?: string;
-  alasan: string;
-  statusKoreksi: number;
+  jenisPeriode: string;
+  kodePeriode: string;
+  nomorBeritaAcara: string;
+  tanggalPembatalan: string;
+  nomorBkuMohon: string;
+  nilaiSpjBatal: number;
+  nrkPengkoreksi: string;
+  namaPengkoreksi: string;
+  fileBeritaAcaraName?: string;
+  fileBeritaAcaraPath?: string;
+  uraianBeritaAcara: string;
+  pajakTidakDikoreksi: boolean;
+  statusBatal: number; // 0 Draft PK, 1 Diajukan TU, 2 Disetujui TU, 3 Disetujui PA, 4 Disetujui Sudin, 9 Ditolak
+  catatanVerifikasi?: string;
+  submittedByPk?: string;
+  submittedByPkAt?: string;
+  approvedByTu?: string;
+  approvedByTuAt?: string;
+  approvedByPa?: string;
+  approvedByPaAt?: string;
+  approvedBySudin?: string;
+  approvedBySudinAt?: string;
+  createdBy: string;
   createdAt: string;
+}
+
+export interface SaveBatalTransferRequest {
+  bkuTransactionId: number;
+  sekolahId: number;
+  tahunAnggaran: number;
+  sumberDana: string;
+  jenisPeriode: string;
+  kodePeriode: string;
+  nomorBeritaAcara: string;
+  tanggalPembatalan: string;
+  nrkPengkoreksi: string;
+  namaPengkoreksi: string;
+  fileBeritaAcaraName?: string;
+  fileBeritaAcaraPath?: string;
+  uraianBeritaAcara: string;
+  pajakTidakDikoreksi: boolean;
 }

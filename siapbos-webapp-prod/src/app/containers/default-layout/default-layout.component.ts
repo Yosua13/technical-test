@@ -141,25 +141,30 @@ import { AuthService } from '../../core/services/auth.service';
               </button>
 
               @if (showUserMenu()) {
-                <div class="topbar-popover end-0 shadow-lg rounded-4 p-2 mt-2" style="width: 290px; left: auto;">
+                <div class="topbar-popover end-0 shadow-lg rounded-4 p-2 mt-2" style="width: 300px; left: auto;">
                   <div class="px-2 py-2 border-bottom mb-2">
                     <div class="fw-bold small text-dark">{{ auth.currentUser()?.namaLengkap }}</div>
                     <div class="text-muted" style="font-size: 0.72rem;">{{ auth.currentUser()?.jabatan }}</div>
-                    <div class="text-muted" style="font-size: 0.72rem;">TA {{ auth.tahunAnggaran() }} · {{ auth.activeSekolah()?.namaSekolah || 'Dinas Pendidikan' }}</div>
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                      @for (role of auth.getUserRoles(); track role) {
+                        <span class="badge badge-neutral" style="font-size: 0.66rem;">{{ role }}</span>
+                      }
+                    </div>
+                    <div class="text-muted mt-1" style="font-size: 0.72rem;">
+                      TA {{ auth.tahunAnggaran() }} · {{ auth.activeSekolah()?.namaSekolah || (auth.requiresSchoolPicker() ? 'Belum memilih sekolah' : 'Dinas Pendidikan') }}
+                    </div>
                   </div>
 
-                  <div class="px-2 pb-1 small fw-bold text-muted text-uppercase" style="font-size: 0.66rem;">Pindah Role Demo</div>
-                  @for (r of demoRoles; track r.code) {
+                  @if (auth.requiresSchoolPicker()) {
                     <button type="button"
-                            class="dropdown-item rounded-3 py-1 px-2 d-flex justify-content-between align-items-center mb-1"
-                            [class.active-role-item]="auth.currentUser()?.roleCode === r.code"
-                            (click)="switchRole(r.code); showUserMenu.set(false)">
-                      <span class="small fw-medium">{{ r.label }}</span>
-                      <span class="badge badge-neutral" style="font-size: 0.65rem;">{{ r.short }}</span>
+                            class="dropdown-item rounded-3 py-2 small fw-semibold"
+                            style="color: #B45309; background: #FFF8EB;"
+                            (click)="auth.openSekolahPicker(); showUserMenu.set(false)">
+                      <i class="bi bi-building-fill-check me-2"></i>Pilih Sekolah (DataTables)
                     </button>
+                    <hr class="my-2">
                   }
 
-                  <hr class="my-2">
                   <a class="dropdown-item rounded-3 py-2 small" routerLink="/landingpage" (click)="showUserMenu.set(false)">
                     <i class="bi bi-house-door me-2 text-muted"></i>Ke Landing Page
                   </a>
@@ -243,11 +248,21 @@ import { AuthService } from '../../core/services/auth.service';
 
           @if (!sidebarCollapsed()) {
             <div class="p-3 border-top small text-muted" style="background: #F8FAFC; font-size: 0.74rem;">
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="pulse-dot"></span>
-                <span class="fw-semibold text-dark">Unit Aktif</span>
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="pulse-dot"></span>
+                  <span class="fw-semibold text-dark">Unit Aktif</span>
+                </div>
+                @if (auth.requiresSchoolPicker()) {
+                  <button type="button"
+                          class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
+                          style="font-size: 0.7rem; color: #EA580C;"
+                          (click)="auth.openSekolahPicker()">
+                    DataTables
+                  </button>
+                }
               </div>
-              <div class="text-truncate">{{ auth.activeSekolah()?.namaSekolah || 'Dinas Pendidikan DKI Jakarta' }}</div>
+              <div class="text-truncate">{{ auth.activeSekolah()?.namaSekolah || (auth.requiresSchoolPicker() ? 'Pilih Sekolah via DataTables' : 'Dinas Pendidikan DKI Jakarta') }}</div>
             </div>
           }
         </aside>
@@ -286,12 +301,37 @@ import { AuthService } from '../../core/services/auth.service';
                     }
                   }
                 </div>
+                @if (auth.requiresSchoolPicker()) {
+                  <button type="button"
+                          class="btn btn-sm btn-outline-warning rounded-pill px-3 d-inline-flex align-items-center gap-2 text-dark border"
+                          style="background: #FFFBF5; border-color: rgba(255,154,0,0.45) !important;"
+                          (click)="auth.openSekolahPicker()">
+                    <i class="bi bi-building-fill-check" style="color: #F97316;"></i>
+                    <span class="small fw-semibold">{{ auth.activeSekolah()?.namaSekolah || 'Pilih Sekolah (DataTables)' }}</span>
+                  </button>
+                }
               </div>
             </div>
 
-            <div class="animate-page">
-              <router-outlet />
-            </div>
+            @if (needsSekolahGate()) {
+              <div class="siap-card p-5 text-center my-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                     style="width: 64px; height: 64px; background: #FFF4E5; color: #FF9A00;">
+                  <i class="bi bi-building-fill-check fs-2"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-2">Pilih Sekolah Terlebih Dahulu</h5>
+                <p class="text-muted small mx-auto mb-4" style="max-width: 480px;">
+                  Menu operasional ini memerlukan pemilihan satuan pendidikan aktif melalui <strong>DataTables Sekolah</strong> sebelum data dapat ditampilkan.
+                </p>
+                <button type="button" class="btn btn-siap rounded-pill px-4" (click)="openGateSekolahPicker()">
+                  <i class="bi bi-table me-2"></i>Buka DataTables Sekolah
+                </button>
+              </div>
+            } @else {
+              <div class="animate-page">
+                <router-outlet />
+              </div>
+            }
           </div>
 
           <footer class="bg-white border-top px-4 py-2 d-flex flex-wrap justify-content-between align-items-center text-muted" style="font-size: 0.76rem;">
@@ -467,14 +507,6 @@ export class DefaultLayoutComponent implements OnInit {
 
   readonly globalQuery = signal('');
 
-  readonly demoRoles = [
-    { code: 'ADMIN-DINAS', short: 'ADM', label: 'ADMIN-TDI / Admin Dinas' },
-    { code: 'PK-NEGERI', short: 'PK', label: 'Bendahara Sekolah (PK)' },
-    { code: 'TU-NEGERI', short: 'TU', label: 'Verifikator (Kasubag TU)' },
-    { code: 'PA-NEGERI', short: 'PA', label: 'Kepala Sekolah (PA)' },
-    { code: 'SUDIN', short: 'SDN', label: 'Suku Dinas (Sudin)' }
-  ];
-
   readonly currentRoot = computed(() => {
     const seg = this.currentUrl().split('/').filter(Boolean)[0] ?? 'bos-negeri';
     return seg === 'bop-negeri' ? 'bku-bop' : seg;
@@ -483,6 +515,12 @@ export class DefaultLayoutComponent implements OnInit {
   readonly activeModule = computed(() => {
     const root = this.currentRoot();
     return this.auth.listAplikasi().find((a) => a.link === root) ?? this.auth.listAplikasi()[0] ?? null;
+  });
+
+  readonly needsSekolahGate = computed(() => {
+    if (!this.auth.requiresSchoolPicker() || this.auth.sekolahConfirmed()) return false;
+    const meta = this.auth.findMenuMeta(this.currentUrl());
+    return !!meta?.menu?.requiresSekolah;
   });
 
   readonly userInitials = computed(() => {
@@ -498,7 +536,7 @@ export class DefaultLayoutComponent implements OnInit {
   readonly searchResults = computed(() => {
     const q = this.globalQuery().trim().toLowerCase();
     if (!q) return [];
-    const results: { appNama: string; appLink: string; menuNama: string; fullUrl: string; icon: string }[] = [];
+    const results: { appNama: string; appLink: string; menuNama: string; fullUrl: string; icon: string; requiresSekolah: boolean }[] = [];
     for (const app of this.auth.listAplikasi()) {
       for (const mn of app.menu) {
         if (mn.nama.toLowerCase().includes(q)) {
@@ -507,7 +545,8 @@ export class DefaultLayoutComponent implements OnInit {
             appLink: app.link,
             menuNama: mn.nama,
             fullUrl: `/${app.link}/${mn.link}`,
-            icon: mn.icon
+            icon: mn.icon,
+            requiresSekolah: !!mn.requiresSekolah
           });
         }
       }
@@ -524,11 +563,13 @@ export class DefaultLayoutComponent implements OnInit {
     this.auth.loadSekolahOptions().subscribe();
     this.expandedGroup.set(this.currentRoot());
     this.updateTitle();
+    this.checkSekolahGate(this.router.url);
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       this.currentUrl.set(this.router.url);
       this.expandedGroup.set(this.currentRoot());
       this.closePopovers();
       this.updateTitle();
+      this.checkSekolahGate(this.router.url);
     });
   }
 
@@ -566,10 +607,14 @@ export class DefaultLayoutComponent implements OnInit {
     this.expandedGroup.set(this.expandedGroup() === app.link ? null : app.link);
   }
 
-  navigateFromSearch(item: { appLink: string; fullUrl: string }): void {
+  navigateFromSearch(item: { appLink: string; fullUrl: string; requiresSekolah: boolean }): void {
     this.expandedGroup.set(item.appLink);
     this.globalQuery.set('');
     this.showSearchDropdown.set(false);
+    if (this.auth.requiresSchoolPicker() && !this.auth.sekolahConfirmed() && item.requiresSekolah) {
+      this.auth.openSekolahPicker(item.fullUrl);
+      return;
+    }
     this.router.navigateByUrl(item.fullUrl);
   }
 
@@ -580,12 +625,16 @@ export class DefaultLayoutComponent implements OnInit {
     this.showPageHelp.set(false);
   }
 
-  switchRole(roleCode: string): void {
-    this.auth.quickSwitchRole(roleCode).subscribe({
-      next: () => {
-        this.auth.loadSekolahOptions().subscribe();
-      }
-    });
+  openGateSekolahPicker(): void {
+    this.auth.openSekolahPicker(this.router.url);
+  }
+
+  private checkSekolahGate(url: string): void {
+    if (!this.auth.requiresSchoolPicker() || this.auth.sekolahConfirmed()) return;
+    const meta = this.auth.findMenuMeta(url);
+    if (meta?.menu?.requiresSekolah) {
+      this.auth.openSekolahPicker(url);
+    }
   }
 
   private updateTitle(): void {

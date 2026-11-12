@@ -1,13 +1,15 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastService } from './core/services/toast.service';
+import { SekolahPickerModalComponent } from './shared/components/sekolah-picker-modal.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, SekolahPickerModalComponent],
   template: `
     <router-outlet />
+    <app-sekolah-picker-modal />
     <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 2000;">
       @for (t of toast.toasts(); track t.id) {
         <div class="toast show align-items-center border-0 shadow-lg mb-2 toast-animated"

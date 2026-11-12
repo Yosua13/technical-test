@@ -1,19 +1,23 @@
 import { Routes, Route } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
+import { authGuard, rbacMenuGuard } from './core/guards/auth.guard';
 import { DefaultLayoutComponent } from './containers/default-layout/default-layout.component';
 import { LoginComponent } from './pages/login/login.component';
 import { LandingPageComponent } from './pages/landing-page/landing-page.component';
 import { DashboardDanaComponent } from './pages/transaksi/dashboard-dana.component';
 import { KonfirmasiDanaComponent } from './pages/transaksi/konfirmasi-dana.component';
 import { InputBkuComponent } from './pages/transaksi/input-bku.component';
+import { InputBkuFormComponent } from './pages/transaksi/input-bku-form.component';
 import { PersetujuanBkuComponent } from './pages/transaksi/persetujuan-bku.component';
 import { PembayaranBkuComponent } from './pages/transaksi/pembayaran-bku.component';
 import { PembayaranPajakComponent } from './pages/transaksi/pembayaran-pajak.component';
-import { SetoranStsComponent } from './pages/transaksi/setoran-sts.component';
-import { BapKasTutupBukuComponent } from './pages/transaksi/bap-kas-tutup-buku.component';
+import { BatalTransferListComponent } from './pages/transaksi/batal-transfer-list.component';
+import { BatalTransferFormComponent } from './pages/transaksi/batal-transfer-form.component';
+import { TutupBkuComponent } from './pages/transaksi/tutup-bku.component';
+import { BatalTutupBkuComponent } from './pages/transaksi/batal-tutup-bku.component';
+import { Mutasi12Component } from './pages/transaksi/mutasi-12.component';
+import { MutasiSemuaComponent } from './pages/transaksi/mutasi-semua.component';
 import { LaporanBkuComponent } from './pages/transaksi/laporan-bku.component';
 import { NpdBopComponent } from './pages/bop-specific/npd-bop.component';
-import { KoreksiBkuComponent } from './pages/bop-specific/koreksi-bku.component';
 import { KonfirmasiRekeningComponent } from './pages/sekolah/konfirmasi-rekening.component';
 import {
   BatasPengajuanComponent,
@@ -21,10 +25,10 @@ import {
   HelpdeskLogsComponent,
   KonversiRkasComponent
 } from './pages/administrator/administrator-pages.component';
+import { PenggunaMgmtComponent } from './pages/user-management/pengguna-mgmt.component';
+import { OtoritasMgmtComponent } from './pages/user-management/otoritas-mgmt.component';
 import {
-  OtoritasMgmtComponent,
   PajakMgmtComponent,
-  PenggunaMgmtComponent,
   SekolahMgmtComponent
 } from './pages/user-management/user-management-pages.component';
 
@@ -38,32 +42,29 @@ const bopChildren: Route[] = [
   { path: 'persetujuan-npd', component: NpdBopComponent, data: { sumberDana: 'BOP', title: 'Persetujuan NPD BOP' } },
   { path: 'konfirmasi-dana', component: KonfirmasiDanaComponent, data: { sumberDana: 'BOP', title: 'Konfirmasi Dropping Dana BOP' } },
   { path: 'input-bku', component: InputBkuComponent, data: { sumberDana: 'BOP', title: 'Input BKU BOP' } },
+  { path: 'input-bku/tambah', component: InputBkuFormComponent, data: { sumberDana: 'BOP', formMode: 'tambah', title: 'Tambah Transaksi BKU BOP' } },
+  { path: 'input-bku/edit/:id', component: InputBkuFormComponent, data: { sumberDana: 'BOP', formMode: 'edit', title: 'Edit Transaksi BKU BOP' } },
+  { path: 'input-bku/detail/:id', component: InputBkuFormComponent, data: { sumberDana: 'BOP', formMode: 'detail', title: 'Detail Transaksi BKU BOP' } },
   { path: 'list-bku-bop', component: InputBkuComponent, data: { sumberDana: 'BOP', title: 'List BKU BOP' } },
-  { path: 'persetujuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', title: 'Persetujuan Pembayaran BKU BOP' } },
-  { path: 'pengajuan-pembayaran-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', title: 'Pengajuan Pembayaran BKU BOP' } },
+  { path: 'pengajuan-pembayaran-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', defaultTab: 'pk', title: 'Pengajuan Pembayaran BKU BOP' } },
+  { path: 'persetujuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', defaultTab: 'tu', title: 'Persetujuan Pembayaran BKU BOP' } },
+  { path: 'persetujuan-bku-tu', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', defaultTab: 'tu', title: 'Persetujuan Pembayaran BKU BOP (TU)' } },
+  { path: 'persetujuan-bku-pa', component: PersetujuanBkuComponent, data: { sumberDana: 'BOP', defaultTab: 'pa', title: 'Persetujuan Pembayaran BKU BOP (PA)' } },
   { path: 'pembayaran-bku', component: PembayaranBkuComponent, data: { sumberDana: 'BOP', title: 'Pembayaran BKU BOP (CMS Bank DKI)' } },
   { path: 'permohonan-token', component: PembayaranBkuComponent, data: { sumberDana: 'BOP', title: 'Permohonan Token PA (BOP)' } },
   { path: 'pembayaran-pajak', component: PembayaranPajakComponent, data: { sumberDana: 'BOP', title: 'Pembayaran Pajak BKU BOP' } },
   { path: 'pembayaran-pajak-bop', component: PembayaranPajakComponent, data: { sumberDana: 'BOP', title: 'Pembayaran Pajak BKU BOP' } },
-  { path: 'koreksi-bku', component: KoreksiBkuComponent, data: { sumberDana: 'BOP', title: 'Koreksi BKU & Batal Transfer SPJ (BOP)' } },
-  { path: 'batal-transfer-spj', component: KoreksiBkuComponent, data: { sumberDana: 'BOP', title: 'Batal Transfer BKU BOP' } },
-  { path: 'persetujuan-batal-tf-spj', component: KoreksiBkuComponent, data: { sumberDana: 'BOP', title: 'Persetujuan Batal Transfer BKU BOP' } },
-  { path: 'persetujuan-koreksi-sudin-bop', component: KoreksiBkuComponent, data: { sumberDana: 'BOP', title: 'Persetujuan Koreksi Periode Sebelum BOP' } },
-  { path: 'input-bku-koreksi', component: KoreksiBkuComponent, data: { sumberDana: 'BOP', title: 'Koreksi Periode Sebelum BOP' } },
-  { path: 'cetak-setoran', component: SetoranStsComponent, data: { sumberDana: 'BOP', title: 'Cetak Setoran BOP' } },
-  { path: 'persetujuan-setoran', component: SetoranStsComponent, data: { sumberDana: 'BOP', title: 'Persetujuan Setoran BOP' } },
-  { path: 'setor-sisa-belanja', component: SetoranStsComponent, data: { sumberDana: 'BOP', title: 'Input Setor Sisa Belanja BOP' } },
-  { path: 'pengajuan-pendapatan-lain-lain-bop', component: SetoranStsComponent, data: { sumberDana: 'BOP', title: 'Pengajuan & Persetujuan Pendapatan Lain-Lain BOP' } },
-  { path: 'pembayaran-pendapatan-lain-lain-bop', component: SetoranStsComponent, data: { sumberDana: 'BOP', title: 'Pembayaran Pindah Buku BOP' } },
+  { path: 'batal-transfer-spj', component: BatalTransferListComponent, data: { sumberDana: 'BOP', mode: 'request', title: 'Batal Transfer SPJ BOP' } },
+  { path: 'batal-transfer-spj/tambah', component: BatalTransferFormComponent, data: { sumberDana: 'BOP', formMode: 'tambah', title: 'Tambah Batal Transfer SPJ BOP' } },
+  { path: 'batal-transfer-spj/edit/:id', component: BatalTransferFormComponent, data: { sumberDana: 'BOP', formMode: 'edit', title: 'Edit Batal Transfer SPJ BOP' } },
+  { path: 'batal-transfer-spj/detail/:id', component: BatalTransferFormComponent, data: { sumberDana: 'BOP', formMode: 'detail', title: 'Detail Batal Transfer SPJ BOP' } },
+  { path: 'persetujuan-batal-tf-spj', component: BatalTransferListComponent, data: { sumberDana: 'BOP', mode: 'approve', title: 'Persetujuan Batal Transfer BKU BOP' } },
   { path: 'batas-pengajuan-belanja', component: BatasPengajuanComponent, data: { sumberDana: 'BOP', title: 'Batas Pengajuan Belanja BOP' } },
-  { path: 'bap-kas-tutup-buku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'Mutasi Bank DKI, BAP Kas & Tutup Buku (BOP)' } },
-  { path: 'bap-kas', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'BAP KAS BOP' } },
-  { path: 'batal-tutup-bku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'Batal Tutup BKU BOP' } },
-  { path: 'tutup-bku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'Tutup BKU BOP' } },
-  { path: 'mutasi-transfer-12-transaksi', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'Mutasi 12 Transaksi BOP' } },
-  { path: 'bap-kas-approval-sudin', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'BAP Kas Approval (Sudin)' } },
-  { path: 'bap-kas-approval-pa', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'BAP KAS Approval (PA)' } },
-  { path: 'bop-mutasi-semua', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOP', title: 'Mutasi Semua Transaksi BOP' } },
+  { path: 'bap-kas-tutup-buku', component: TutupBkuComponent, data: { sumberDana: 'BOP', title: 'Tutup BKU BOP' } },
+  { path: 'batal-tutup-bku', component: BatalTutupBkuComponent, data: { sumberDana: 'BOP', title: 'Batal Tutup BKU BOP' } },
+  { path: 'tutup-bku', component: TutupBkuComponent, data: { sumberDana: 'BOP', title: 'Tutup BKU BOP' } },
+  { path: 'mutasi-transfer-12-transaksi', component: Mutasi12Component, data: { sumberDana: 'BOP', title: 'Mutasi 12 Transaksi BOP' } },
+  { path: 'bop-mutasi-semua', component: MutasiSemuaComponent, data: { sumberDana: 'BOP', title: 'Mutasi Semua Transaksi BOP' } },
   { path: 'laporan-bku', component: LaporanBkuComponent, data: { sumberDana: 'BOP', title: 'Laporan BKU BOP K1-K7 (PDF & Excel)' } },
   { path: 'laporan-BKU', component: LaporanBkuComponent, data: { sumberDana: 'BOP', title: 'Laporan BKU BOP K1-K7 (PDF & Excel)' } }
 ];
@@ -76,16 +77,17 @@ export const routes: Routes = [
     path: '',
     component: DefaultLayoutComponent,
     canActivate: [authGuard],
+    canActivateChild: [rbacMenuGuard],
     children: [
-      // 1. USER MANAGEMENT (7 Sub Menu)
+      // 1. USER MANAGEMENT
       {
         path: 'user-management',
         children: [
           { path: '', redirectTo: 'pengguna', pathMatch: 'full' },
-          { path: 'pengguna', component: PenggunaMgmtComponent, data: { title: 'Manajemen Pengguna', desc: 'Kelola akun pengelola BOS/BOP dan sinkronisasi pegawai SIMPEG berdasarkan NRK.' } },
-          { path: 'otoritas', component: OtoritasMgmtComponent, data: { title: 'Master Otoritas (RBAC)', desc: 'Hierarki kewenangan role dan matriks hak akses sub-menu.' } },
-          { path: 'aplikasi', component: OtoritasMgmtComponent, data: { title: 'Master Aplikasi', desc: 'Daftar 5 modul utama beserta otorisasi role yang diizinkan.' } },
-          { path: 'menu', component: OtoritasMgmtComponent, data: { title: 'Master Sub-Menu Aplikasi', desc: 'Pengaturan tautan rute dan ikon tiap sub-menu modul.' } },
+          { path: 'pengguna', component: PenggunaMgmtComponent, data: { title: 'Manajemen Pengguna', desc: 'Kelola akun pengelola BOS/BOP, filter lengkap, lock/aktif, dan pemetaan otoritas/sekolah.' } },
+          { path: 'otoritas', component: OtoritasMgmtComponent, data: { tab: 'otoritas', title: 'Master Otoritas (RBAC)', desc: 'Hierarki kewenangan role serta pengaturan hak akses modul & sub-menu.' } },
+          { path: 'aplikasi', component: OtoritasMgmtComponent, data: { tab: 'aplikasi', title: 'Master Aplikasi', desc: 'Daftar modul utama beserta pengelolaan urutan & deskripsi aplikasi.' } },
+          { path: 'menu', component: OtoritasMgmtComponent, data: { tab: 'menu', title: 'Master Sub-Menu Aplikasi', desc: 'Pengaturan tautan rute, ikon, dan flag wajib pilih sekolah.' } },
           { path: 'periode', component: BatasPengajuanComponent, data: { title: 'Master Periode Anggaran', desc: 'Pengaturan batas pengajuan belanja dan status aktif tiap periode.' } },
           { path: 'master-sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening', desc: 'Kelola profil satuan pendidikan, nomor rekening BOS/BOP, serta pejabat penandatangan.' } },
           { path: 'sekolah', component: SekolahMgmtComponent, data: { title: 'Master Sekolah & Rekening', desc: 'Kelola profil satuan pendidikan, nomor rekening BOS/BOP, serta pejabat penandatangan.' } },
@@ -93,7 +95,7 @@ export const routes: Routes = [
         ]
       },
 
-      // 2. BKU BOSP NEGERI (27 Sub Menu)
+      // 2. BKU BOSP NEGERI (Clean from Section II eliminated menus)
       {
         path: 'bos-negeri',
         children: [
@@ -104,37 +106,34 @@ export const routes: Routes = [
           { path: 'konfirmasi-drop-dana', component: KonfirmasiDanaComponent, data: { sumberDana: 'BOS', title: 'Dropping Dana BOSP' } },
           { path: 'dinas-konfirmasi-drop-dana', component: KonfirmasiDanaComponent, data: { sumberDana: 'BOS', title: 'Konfirmasi Dropping Dana BOSP' } },
           { path: 'input-bku', component: InputBkuComponent, data: { sumberDana: 'BOS', title: 'Input BKU BOSP' } },
+          { path: 'input-bku/tambah', component: InputBkuFormComponent, data: { sumberDana: 'BOS', formMode: 'tambah', title: 'Tambah Transaksi BKU BOSP' } },
+          { path: 'input-bku/edit/:id', component: InputBkuFormComponent, data: { sumberDana: 'BOS', formMode: 'edit', title: 'Edit Transaksi BKU BOSP' } },
+          { path: 'input-bku/detail/:id', component: InputBkuFormComponent, data: { sumberDana: 'BOS', formMode: 'detail', title: 'Detail Transaksi BKU BOSP' } },
           { path: 'list-bku-bosp', component: InputBkuComponent, data: { sumberDana: 'BOS', title: 'List BKU BOSP' } },
-          { path: 'persetujuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', title: 'Persetujuan Berjenjang BOSP' } },
-          { path: 'pengajuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', title: 'Pengajuan Pembayaran BKU BOSP' } },
-          { path: 'persetujuan-bku-tu', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', title: 'Persetujuan Pembayaran BKU BOSP (TU)' } },
-          { path: 'persetujuan-bku-pa', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', title: 'Persetujuan Pembayaran BKU BOSP (PA)' } },
+          { path: 'persetujuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', defaultTab: 'tu', title: 'Persetujuan Berjenjang BOSP' } },
+          { path: 'pengajuan-bku', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', defaultTab: 'pk', title: 'Pengajuan Pembayaran BKU BOSP' } },
+          { path: 'persetujuan-bku-tu', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', defaultTab: 'tu', title: 'Persetujuan Pembayaran BKU BOSP (TU)' } },
+          { path: 'persetujuan-bku-pa', component: PersetujuanBkuComponent, data: { sumberDana: 'BOS', defaultTab: 'pa', title: 'Persetujuan Pembayaran BKU BOSP (PA)' } },
           { path: 'pembayaran-bku', component: PembayaranBkuComponent, data: { sumberDana: 'BOS', title: 'Pembayaran BKU BOSP (CMS Bank DKI)' } },
           { path: 'permohonan-token', component: PembayaranBkuComponent, data: { sumberDana: 'BOS', title: 'Permohonan Token PA (BOSP)' } },
           { path: 'pembayaran-pajak', component: PembayaranPajakComponent, data: { sumberDana: 'BOS', title: 'Pembayaran Pajak BKU BOSP' } },
           { path: 'pembayaran-pajak-bku', component: PembayaranPajakComponent, data: { sumberDana: 'BOS', title: 'Pembayaran Pajak BKU BOSP' } },
-          { path: 'setoran-sts', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Setoran Sisa Kas / STS (BOSP)' } },
-          { path: 'setor-pendapatan-lain2-bos', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Setor Pendapatan Lain-Lain BOSP' } },
-          { path: 'cetak-setoran', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Cetak Setor BOSP' } },
-          { path: 'persetujuan-setoran', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Persetujuan Setoran BOSP' } },
-          { path: 'pengajuan-pendapatan-lain-lain', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Pengajuan dan Persetujuan Pendapatan Lain-Lain' } },
-          { path: 'pembayaran-pendapatan-lain-lain', component: SetoranStsComponent, data: { sumberDana: 'BOS', title: 'Pembayaran Pindah Buku BOSP' } },
-          { path: 'batal-transfer-spj', component: KoreksiBkuComponent, data: { sumberDana: 'BOS', title: 'Batal Transfer BKU BOSP' } },
-          { path: 'persetujuan-koreksi-dinas-bos', component: KoreksiBkuComponent, data: { sumberDana: 'BOS', title: 'Persetujuan Koreksi Periode Sebelum BOSP' } },
-          { path: 'input-bku-koreksi', component: KoreksiBkuComponent, data: { sumberDana: 'BOS', title: 'Koreksi Periode Sebelum BOSP' } },
-          { path: 'input-bku-koreksi-tahun-lalu', component: KoreksiBkuComponent, data: { sumberDana: 'BOS', title: 'Koreksi Tahun Lalu BOSP' } },
-          { path: 'bap-kas-tutup-buku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'Mutasi Bank DKI, BAP Kas & Tutup Buku (BOS)' } },
-          { path: 'bap-kas-bos', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'BAP KAS BOSP' } },
-          { path: 'tutup-bku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'Tutup BKU BOSP' } },
-          { path: 'batal-tutup-bku', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'Batal Tutup BKU BOSP' } },
-          { path: 'bos-mutasi-12', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'Mutasi 12 Transaksi BOSP' } },
-          { path: 'bos-mutasi-semua', component: BapKasTutupBukuComponent, data: { sumberDana: 'BOS', title: 'Mutasi Semua Transaksi BOSP' } },
+          { path: 'batal-transfer-spj', component: BatalTransferListComponent, data: { sumberDana: 'BOS', mode: 'request', title: 'Batal Transfer SPJ BOSP' } },
+          { path: 'batal-transfer-spj/tambah', component: BatalTransferFormComponent, data: { sumberDana: 'BOS', formMode: 'tambah', title: 'Tambah Batal Transfer SPJ BOSP' } },
+          { path: 'batal-transfer-spj/edit/:id', component: BatalTransferFormComponent, data: { sumberDana: 'BOS', formMode: 'edit', title: 'Edit Batal Transfer SPJ BOSP' } },
+          { path: 'batal-transfer-spj/detail/:id', component: BatalTransferFormComponent, data: { sumberDana: 'BOS', formMode: 'detail', title: 'Detail Batal Transfer SPJ BOSP' } },
+          { path: 'persetujuan-batal-tf-spj', component: BatalTransferListComponent, data: { sumberDana: 'BOS', mode: 'approve', title: 'Persetujuan Batal Transfer BKU BOSP' } },
+          { path: 'bap-kas-tutup-buku', component: TutupBkuComponent, data: { sumberDana: 'BOS', title: 'Tutup BKU BOSP' } },
+          { path: 'tutup-bku', component: TutupBkuComponent, data: { sumberDana: 'BOS', title: 'Tutup BKU BOSP' } },
+          { path: 'batal-tutup-bku', component: BatalTutupBkuComponent, data: { sumberDana: 'BOS', title: 'Batal Tutup BKU BOSP' } },
+          { path: 'bos-mutasi-12', component: Mutasi12Component, data: { sumberDana: 'BOS', title: 'Mutasi 12 Transaksi BOSP' } },
+          { path: 'bos-mutasi-semua', component: MutasiSemuaComponent, data: { sumberDana: 'BOS', title: 'Mutasi Semua Transaksi BOSP' } },
           { path: 'laporan-bku', component: LaporanBkuComponent, data: { sumberDana: 'BOS', title: 'Laporan BKU BOSP (PDF & Excel)' } },
           { path: 'laporan-BKU', component: LaporanBkuComponent, data: { sumberDana: 'BOS', title: 'Laporan BKU BOSP (PDF & Excel)' } }
         ]
       },
 
-      // 3. BKU BOP NEGERI (30 Sub Menu - mendukug prefix /bku-bop dan /bop-negeri)
+      // 3. BKU BOP NEGERI (/bku-bop dan /bop-negeri)
       {
         path: 'bku-bop',
         children: bopChildren
