@@ -174,12 +174,19 @@ try {
         Assert-True ($r.Json.data.prosedur.Count -ge 3) "Data prosedur publik tidak lengkap"
     }
 
-    $demoAccounts = $null
-    Assert-Step "GET /auth-server/api/auth/demo-accounts" {
-        $r = Invoke-Api "GET" "/auth-server/api/auth/demo-accounts"
-        Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "HTTP $($r.StatusCode)"
-        $script:demoAccounts = $r.Json.data
-        Assert-True ($script:demoAccounts.Count -ge 4) "Demo accounts kurang dari 4"
+    function Invoke-LoginRole([string]$Username, [string]$Password, [int]$Tahun = 2026) {
+        $cap = (Invoke-Api "GET" "/auth-server/oauth/captcha" -Token "").Json.data
+        return Invoke-Api "POST" "/auth-server/oauth/token" @{
+            username = $Username; password = $Password; tahunAnggaran = $Tahun
+            captchaInput = $cap.captchaCode; captchaToken = $cap.captchaToken; skipCaptchaDemo = $false
+        } -Token ""
+    }
+
+    Assert-Step "Removed demo-accounts & quick-switch endpoints return 404" {
+        $r1 = Invoke-Api "GET" "/auth-server/api/auth/demo-accounts" -Token ""
+        $r2 = Invoke-Api "POST" "/auth-server/api/auth/quick-switch" @{ roleCode = "PK-NEGERI" } -Token ""
+        Assert-True ($r1.StatusCode -eq 404 -or $r1.StatusCode -eq 405) "demo-accounts masih ada ($($r1.StatusCode))"
+        Assert-True ($r2.StatusCode -eq 404 -or $r2.StatusCode -eq 405) "quick-switch masih ada ($($r2.StatusCode))"
     }
 
     Assert-Step "POST /auth-server/oauth/token (Negative: wrong captcha)" {
@@ -200,28 +207,80 @@ try {
         Assert-True ($r.StatusCode -eq 401 -or $r.StatusCode -eq 400) "Seharusnya ditolak (actual: $($r.StatusCode))"
     }
 
-    Assert-Step "POST /auth-server/oauth/token (Valid Login ADMIN-TDI + MonaS123! + Tahun 2025 + 5 Main Menus)" {
-        $cap = (Invoke-Api "GET" "/auth-server/oauth/captcha").Json.data
-        $r = Invoke-Api "POST" "/auth-server/oauth/token" @{
-            username = "ADMIN-TDI"; password = "MonaS123!"; tahunAnggaran = 2025
-            captchaInput = $cap.captchaCode; captchaToken = $cap.captchaToken; skipCaptchaDemo = $false
+    $adminToken = ""
+    $pkToken = ""
+    $tuToken = ""
+    $paToken = ""
+    $sudinToken = ""
+    $dinasToken = ""
+    Assert-Step "RBAC Login Verification: 6 DB Roles & Zero Section II Eliminated Menus" {
+        $eliminatedNames = @(
+            "Setor Pendapatan Lain-Lain BOSP", "Cetak Setor", "BAP KAS BOSP",
+            "Pengajuan dan Persetujuan Pendapatan Lain-Lain", "Koreksi Periode Sebelum BOSP", "Koreksi Tahun Lalu",
+            "Cetak Setoran BOP", "BAP KAS BOP", "Input Setor Sisa Belanja",
+            "Pengajuan & Persetujuan Pendapatan Lain-Lain BOP", "Koreksi Periode Sebelum BOP"
+        )
+
+        # 1. ADMIN-TDI (Tahun 2025 -> 5 Main Modules + requiresSchoolPicker)
+        $rAdm = Invoke-LoginRole "ADMIN-TDI" "MonaS123!" 2025
+        Assert-True ($rAdm.StatusCode -eq 200 -and $rAdm.Json.success) "Login ADMIN-TDI gagal: $($rAdm.Raw)"
+        $script:adminToken = $rAdm.Json.data.accessToken
+        Assert-True ($rAdm.Json.data.user.requiresSchoolPicker -eq $true) "ADMIN-TDI wajib requiresSchoolPicker=true"
+        $admMods = @($rAdm.Json.data.listAplikasi)
+        Assert-True ($admMods.Count -eq 5) "Jumlah Menu Utama ADMIN-TDI harus 5 (actual: $($admMods.Count))"
+        $admMenuNames = $admMods | ForEach-Object { $_.menu } | ForEach-Object { $_.nama }
+        foreach ($dead in $eliminatedNames) {
+            Assert-True ($admMenuNames -notcontains $dead) "Menu tereliminasi '$dead' masih ditemukan di DB!"
         }
-        Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "Login ADMIN-TDI gagal: $($r.Raw)"
-        $mods = @($r.Json.data.listAplikasi)
-        Assert-True ($mods.Count -eq 5) "Jumlah Menu Utama untuk ADMIN-TDI harus 5 (actual: $($mods.Count))"
-        $modCodes = $mods | ForEach-Object { $_.kodeAplikasi }
-        foreach ($expectedCode in @("UM", "BOS", "BOP", "ADMN", "HELP")) {
-            Assert-True ($modCodes -contains $expectedCode) "Menu Utama $expectedCode tidak ditemukan"
-        }
+
+        # 2. PK-NEGERI (bendahara.sman1 -> BOS 12, BOP 13, HELP 3 + single-school isolation + 403 UM)
+        $rPk = Invoke-LoginRole "bendahara.sman1" "password123" 2026
+        Assert-True ($rPk.StatusCode -eq 200 -and $rPk.Json.success) "Login PK-NEGERI gagal: $($rPk.Raw)"
+        $script:pkToken = $rPk.Json.data.accessToken
+        $pkMods = @($rPk.Json.data.listAplikasi)
+        Assert-True ((($pkMods | ForEach-Object { $_.kodeAplikasi }) -join ",") -eq "BOS,BOP,HELP") "Modul PK-NEGERI salah"
+        Assert-True (($pkMods | Where-Object { $_.kodeAplikasi -eq "BOS" }).menu.Count -eq 12) "Sub-menu BOS PK-NEGERI harus 12"
+        Assert-True (($pkMods | Where-Object { $_.kodeAplikasi -eq "BOP" }).menu.Count -eq 13) "Sub-menu BOP PK-NEGERI harus 13"
+        Assert-True (($pkMods | Where-Object { $_.kodeAplikasi -eq "HELP" }).menu.Count -eq 3) "Sub-menu HELP PK-NEGERI harus 3"
+        $rPkPengguna = Invoke-Api "GET" "/auth-server/api/pengguna" -Token $rPk.Json.data.accessToken
+        Assert-True ($rPkPengguna.StatusCode -eq 403) "PK-NEGERI harus ditolak (403) saat akses /api/pengguna"
+        $rPkSek = Invoke-Api "GET" "/auth-server/api/master/sekolah" -Token $rPk.Json.data.accessToken
+        Assert-True ($rPkSek.Json.data.Count -eq 1) "PK-NEGERI harus terisolasi hanya 1 sekolah"
+        $rPkOtherSek = Invoke-Api "GET" "/auth-server/api/master/sekolah/2" -Token $rPk.Json.data.accessToken
+        Assert-True ($rPkOtherSek.StatusCode -eq 403) "PK-NEGERI harus ditolak (403) akses sekolah lain"
+
+        # 3. TU-NEGERI (tu.sman1)
+        $rTu = Invoke-LoginRole "tu.sman1" "password123" 2026
+        Assert-True ($rTu.StatusCode -eq 200 -and $rTu.Json.success) "Login TU-NEGERI gagal"
+        $script:tuToken = $rTu.Json.data.accessToken
+        $tuMods = @($rTu.Json.data.listAplikasi)
+        Assert-True ((($tuMods | ForEach-Object { $_.kodeAplikasi }) -join ",") -eq "BOS,BOP,HELP") "Modul TU-NEGERI salah"
+
+        # 4. PA-NEGERI (kepsek.sman1)
+        $rPa = Invoke-LoginRole "kepsek.sman1" "password123" 2026
+        Assert-True ($rPa.StatusCode -eq 200 -and $rPa.Json.success) "Login PA-NEGERI gagal"
+        $script:paToken = $rPa.Json.data.accessToken
+        $paMenus = @($rPa.Json.data.listAplikasi) | ForEach-Object { $_.menu } | ForEach-Object { $_.nama }
+        Assert-True ($paMenus -contains "Permohonan Token" -and $paMenus -contains "Persetujuan NPD") "Menu PA-NEGERI kurang"
+
+        # 5. SUDIN (sudin.jp -> BOP, ADMN, HELP; NO BOS, NO UM)
+        $rSdn = Invoke-LoginRole "sudin.jp" "password123" 2026
+        Assert-True ($rSdn.StatusCode -eq 200 -and $rSdn.Json.success) "Login SUDIN gagal"
+        $script:sudinToken = $rSdn.Json.data.accessToken
+        $sdnCodes = ($rSdn.Json.data.listAplikasi | ForEach-Object { $_.kodeAplikasi }) -join ","
+        Assert-True ($sdnCodes -eq "BOP,ADMN,HELP") "Modul SUDIN harus BOP,ADMN,HELP (actual: $sdnCodes)"
+
+        # 6. ADMIN-DINAS (admin.dinas -> BOS, ADMN, HELP; NO BOP, NO UM)
+        $rDns = Invoke-LoginRole "admin.dinas" "password123" 2026
+        Assert-True ($rDns.StatusCode -eq 200 -and $rDns.Json.success) "Login ADMIN-DINAS gagal"
+        $script:dinasToken = $rDns.Json.data.accessToken
+        $dnsCodes = ($rDns.Json.data.listAplikasi | ForEach-Object { $_.kodeAplikasi }) -join ","
+        Assert-True ($dnsCodes -eq "BOS,ADMN,HELP") "Modul ADMIN-DINAS harus BOS,ADMN,HELP (actual: $dnsCodes)"
     }
 
     $userProfile = $null
     Assert-Step "POST /auth-server/oauth/token (Valid Login bendahara.sman1 + real captcha)" {
-        $cap = (Invoke-Api "GET" "/auth-server/oauth/captcha").Json.data
-        $r = Invoke-Api "POST" "/auth-server/oauth/token" @{
-            username = "bendahara.sman1"; password = "password123"; tahunAnggaran = 2026
-            captchaInput = $cap.captchaCode; captchaToken = $cap.captchaToken; skipCaptchaDemo = $false
-        }
+        $r = Invoke-LoginRole "bendahara.sman1" "password123" 2026
         Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "Login gagal: $($r.Raw)"
         $script:AuthToken = $r.Json.data.accessToken
         $script:userProfile = $r.Json.data.user
@@ -240,26 +299,13 @@ try {
         }
         Assert-True ($r1.StatusCode -eq 200 -and $r1.Json.success) "Forgot password gagal: $($r1.Raw)"
 
-        $rLoginNew = Invoke-Api "POST" "/auth-server/oauth/token" @{
-            username = "bendahara.sman1"; password = "baru12345"; tahunAnggaran = 2026
-            captchaInput = ""; captchaToken = ""; skipCaptchaDemo = $true
-        }
+        $rLoginNew = Invoke-LoginRole "bendahara.sman1" "baru12345" 2026
         Assert-True ($rLoginNew.StatusCode -eq 200 -and $rLoginNew.Json.success) "Login password baru gagal"
 
         $rRestore = Invoke-Api "POST" "/auth-server/api/auth/change-password" @{
             nrk = "bendahara.sman1"; sandiLama = "baru12345"; sandiBaru = "password123"
         }
         Assert-True ($rRestore.StatusCode -eq 200 -and $rRestore.Json.success) "Restore password gagal: $($rRestore.Raw)"
-    }
-
-    Assert-Step "POST /auth-server/api/auth/quick-switch (PA-NEGERI -> TU-NEGERI -> SUDIN -> ADMIN-DINAS -> PK-NEGERI)" {
-        foreach ($role in @("PA-NEGERI", "TU-NEGERI", "SUDIN", "ADMIN-DINAS", "PK-NEGERI")) {
-            $r = Invoke-Api "POST" "/auth-server/api/auth/quick-switch" @{
-                roleCode = $role; sekolahId = 1; tahunAnggaran = 2026
-            }
-            Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "Switch $role gagal: $($r.Raw)"
-            $script:AuthToken = $r.Json.data.accessToken
-        }
     }
 
     # ============================================================
@@ -269,22 +315,22 @@ try {
 
     Assert-Step "Master Endpoints (/sekolah, /periode, /bas, /pajak, /wilayah)" {
         foreach ($ep in @("/auth-server/api/master/sekolah", "/auth-server/api/master/periode?tahun=2026", "/auth-server/api/master/bas", "/auth-server/api/master/pajak", "/auth-server/api/master/wilayah")) {
-            $r = Invoke-Api "GET" $ep
+            $r = Invoke-Api "GET" $ep -Token $script:adminToken
             Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "$ep gagal ($($r.StatusCode))"
         }
     }
 
     Assert-Step "PUT /auth-server/api/master/periode/{id}/batas-pengajuan" {
-        $periodes = (Invoke-Api "GET" "/auth-server/api/master/periode?tahun=2026").Json.data
+        $periodes = (Invoke-Api "GET" "/auth-server/api/master/periode?tahun=2026" -Token $script:adminToken).Json.data
         $p1 = $periodes[0]
         $r = Invoke-Api "PUT" "/auth-server/api/master/periode/$($p1.id)/batas-pengajuan" @{
             batasPengajuanBelanja = "2026-12-31T00:00:00Z"; isActive = $true
-        }
+        } -Token $script:adminToken
         Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "Update batas gagal: $($r.Raw)"
     }
 
-    Assert-Step "Pengguna, Otoritas, Aplikasi, Menu & SIMPEG Inquiry" {
-        $rSimpeg = Invoke-Api "GET" "/auth-server/api/pengguna/cek-simpeg/190101"
+    Assert-Step "User Management Full RBAC Workflow (ADMIN-TDI): Pengguna, Lock, Otoritas, Sekolah, Wilayah, Aplikasi & Menu" {
+        $rSimpeg = Invoke-Api "GET" "/auth-server/api/pengguna/cek-simpeg/190101" -Token $script:adminToken
         Assert-True ($rSimpeg.StatusCode -eq 200 -and $rSimpeg.Json.success) "SIMPEG inquiry gagal: $($rSimpeg.Raw)"
 
         $stamp = Get-Date -Format "HHmmssff"
@@ -293,22 +339,57 @@ try {
             nrk = "99$stamp".Substring(0,6); nip = "199001012020011001"; nik = "3171010101900001"
             email = "e2e_$stamp@jakarta.go.id"; noHp = "081200000001"; roleCode = "PK-NEGERI"
             jabatan = "Bendahara Penguji E2E"; wilayahSudin = "JP"; sekolahId = 1; isActive = $true
-        }
+        } -Token $script:adminToken
         Assert-True ($rCreateUser.StatusCode -eq 200 -and $rCreateUser.Json.success) "Create user gagal: $($rCreateUser.Raw)"
         $newUid = $rCreateUser.Json.data.id
 
-        $rUpdUser = Invoke-Api "PUT" "/auth-server/api/pengguna/$newUid" @{
-            username = "e2e_$stamp"; namaLengkap = "Pengguna E2E Updated"; nrk = "99$stamp".Substring(0,6)
-            nip = "199001012020011001"; nik = "3171010101900001"; email = "e2e_$stamp@jakarta.go.id"
-            noHp = "081200000001"; roleCode = "PK-NEGERI"; jabatan = "Bendahara E2E"; wilayahSudin = "JP"
-            sekolahId = 1; isActive = $false
-        }
-        Assert-True ($rUpdUser.StatusCode -eq 200 -and $rUpdUser.Json.success) "Update user gagal: $($rUpdUser.Raw)"
+        # Lock -> Unlock -> Reset Password -> Kelola Otoritas/Sekolah/Wilayah -> Delete
+        $rLock = Invoke-Api "PUT" "/auth-server/api/pengguna/set-lock" @{ userIds = @($newUid); flag = $true } -Token $script:adminToken
+        Assert-True ($rLock.StatusCode -eq 200 -and $rLock.Json.success) "Set lock gagal"
+        $rLockedLogin = Invoke-LoginRole "e2e_$stamp" "password123" 2026
+        Assert-True ($rLockedLogin.StatusCode -eq 401 -or -not $rLockedLogin.Json.success) "User terkunci seharusnya ditolak login"
 
-        foreach ($ep in @("/auth-server/api/pengguna", "/auth-server/api/otoritas", "/auth-server/api/aplikasi", "/auth-server/api/menu")) {
-            $r = Invoke-Api "GET" $ep
-            Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "$ep gagal"
-        }
+        $rUnlock = Invoke-Api "PUT" "/auth-server/api/pengguna/set-lock" @{ userIds = @($newUid); flag = $false } -Token $script:adminToken
+        Assert-True ($rUnlock.StatusCode -eq 200 -and $rUnlock.Json.success) "Unlock gagal"
+
+        $rPwd = Invoke-Api "PUT" "/auth-server/api/pengguna/$newUid/reset-password" @{ sandiBaru = "baruE2e99" } -Token $script:adminToken
+        Assert-True ($rPwd.StatusCode -eq 200 -and $rPwd.Json.success) "Reset password gagal"
+
+        $roles = (Invoke-Api "GET" "/auth-server/api/otoritas" -Token $script:adminToken).Json.data
+        Assert-True ($roles.Count -eq 6) "Master Otoritas harus tepat 6 role (actual: $($roles.Count))"
+        $tuRole = ($roles | Where-Object { $_.roleCode -eq "TU-NEGERI" })[0]
+        $rSetOtor = Invoke-Api "PUT" "/auth-server/api/pengguna/$newUid/otoritas" @{ roleIds = @([int]$tuRole.id) } -Token $script:adminToken
+        Assert-True ($rSetOtor.StatusCode -eq 200 -and $rSetOtor.Json.success) "Simpan otoritas gagal"
+
+        $rSetSek = Invoke-Api "PUT" "/auth-server/api/pengguna/$newUid/sekolah" @{ sekolahIds = @(1) } -Token $script:adminToken
+        Assert-True ($rSetSek.StatusCode -eq 200 -and $rSetSek.Json.success) "Simpan sekolah gagal"
+
+        $rSetWil = Invoke-Api "PUT" "/auth-server/api/pengguna/$newUid/wilayah" @{ kodeWilayahList = @("JP") } -Token $script:adminToken
+        Assert-True ($rSetWil.StatusCode -eq 200 -and $rSetWil.Json.success) "Simpan wilayah gagal"
+
+        $rDel = Invoke-Api "DELETE" "/auth-server/api/pengguna/$newUid" -Token $script:adminToken
+        Assert-True ($rDel.StatusCode -eq 200 -and $rDel.Json.success) "Hapus user E2E gagal"
+
+        # Otoritas CRUD & Kelola Aplikasi/Menu roundtrip
+        $rNewRole = Invoke-Api "POST" "/auth-server/api/otoritas" @{
+            roleCode = "ROLE-E2E"; shortCode = "E2E"; roleName = "Role Uji E2E"
+            deskripsi = "Role sementara pengujian RBAC"; level = "SEKOLAH"; isActive = $true
+        } -Token $script:adminToken
+        Assert-True ($rNewRole.StatusCode -eq 200 -and $rNewRole.Json.success) "Create otoritas gagal"
+        $roleIdE2e = $rNewRole.Json.data.id
+
+        $apps = (Invoke-Api "GET" "/auth-server/api/aplikasi" -Token $script:adminToken).Json.data
+        $helpMod = ($apps | Where-Object { $_.kodeAplikasi -eq "HELP" })[0]
+        $rSaveApp = Invoke-Api "PUT" "/auth-server/api/otoritas/$roleIdE2e/aplikasi" @{ moduleIds = @([int]$helpMod.id) } -Token $script:adminToken
+        Assert-True ($rSaveApp.StatusCode -eq 200 -and $rSaveApp.Json.success) "Save otoritas aplikasi gagal"
+
+        $menuMat = (Invoke-Api "GET" "/auth-server/api/otoritas/$roleIdE2e/menu?kodeAplikasi=HELP" -Token $script:adminToken).Json.data
+        $menuIds = @($menuMat.available | ForEach-Object { [int]$_.id })
+        $rSaveMn = Invoke-Api "PUT" "/auth-server/api/otoritas/$roleIdE2e/menu" @{ kodeAplikasi = "HELP"; menuIds = $menuIds } -Token $script:adminToken
+        Assert-True ($rSaveMn.StatusCode -eq 200 -and $rSaveMn.Json.success) "Save otoritas menu gagal"
+
+        $rDelRole = Invoke-Api "DELETE" "/auth-server/api/otoritas/$roleIdE2e" -Token $script:adminToken
+        Assert-True ($rDelRole.StatusCode -eq 200 -and $rDelRole.Json.success) "Cleanup otoritas E2E gagal"
     }
 
     Assert-Step "POST /api/sekolah/1/konfirmasi-rekening" {
@@ -389,7 +470,7 @@ try {
         $rDrop = Invoke-Api "POST" "/api/admin/dropping" @{
             sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "02"
             namaPeriode = "Tahap 2 E2E"; nilaiDropping = 10000000; keterangan = "Dropping Uji E2E BOS"
-        }
+        } -Token $script:adminToken
         Assert-True ($rDrop.StatusCode -eq 200 -and $rDrop.Json.success) "Create dropping gagal: $($rDrop.Raw)"
         $droppingId = $rDrop.Json.data.id
 
@@ -431,17 +512,31 @@ try {
     # ============================================================
     Write-Host "`n[5/9] BOS BKU Lifecycle (Draft -> Reject -> Delete -> TU -> PA -> Sudin -> CMS -> MPN)" -ForegroundColor Cyan
 
-    Assert-Step "BKU Draft Creation & Delete Verification" {
+    Assert-Step "BKU Draft Creation, Edit (PUT) & Delete Verification" {
         $rDraft = Invoke-Api "POST" "/api/input-spj" @{
             sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
             tanggalTransaksi = "2026-03-10T00:00:00Z"; kodeTrx = "JJ"; jenisPembayaran = "TRANSFER"
-            uraian = "Draft E2E Akan Dihapus"; namaRekanan = "CV Test"; kodeBankRekanan = "111"
+            uraian = "Draft E2E Akan Diubah & Dihapus"; namaRekanan = "CV Test"; kodeBankRekanan = "111"
             namaBankRekanan = "Bank DKI"; noRekRekanan = "1110099887766"; npwpRekanan = "01.345.678.9-022.000"
             detailItems = @(@{ rkasItemId = $script:e2eRkasBosId; kodeKegiatan = "05.05.E2E"; namaKegiatan = "Pengadaan Buku Uji E2E"; kodeAkun = "5.1.02.01.01.0024"; namaAkun = "Belanja Alat"; kodeKomponen = "E2E-BOS-01"; namaKomponen = "Paket Kertas E2E"; volume = 1; satuan = "Paket"; hargaSatuan = 250000 })
             taxItems = @()
         }
         Assert-True ($rDraft.StatusCode -eq 200 -and $rDraft.Json.success) "Create draft gagal: $($rDraft.Raw)"
         $draftId = $rDraft.Json.data.id
+
+        $rGet = Invoke-Api "GET" "/api/input-spj/$draftId"
+        Assert-True ($rGet.StatusCode -eq 200 -and $rGet.Json.data.id -eq $draftId) "Get detail draft gagal: $($rGet.Raw)"
+
+        $rEdit = Invoke-Api "PUT" "/api/input-spj/$draftId" @{
+            sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
+            tanggalTransaksi = "2026-03-10T00:00:00Z"; kodeTrx = "JJ"; jenisPembayaran = "TRANSFER"
+            uraian = "Draft E2E Diperbarui PK"; namaRekanan = "CV Test Edit"; kodeBankRekanan = "111"
+            namaBankRekanan = "Bank DKI"; noRekRekanan = "1110099887766"; npwpRekanan = "01.345.678.9-022.000"
+            detailItems = @(@{ rkasItemId = $script:e2eRkasBosId; kodeKegiatan = "05.05.E2E"; namaKegiatan = "Pengadaan Buku Uji E2E"; kodeAkun = "5.1.02.01.01.0024"; namaAkun = "Belanja Alat"; kodeKomponen = "E2E-BOS-01"; namaKomponen = "Paket Kertas E2E"; volume = 1; satuan = "Paket"; hargaSatuan = 250000 })
+            taxItems = @()
+        }
+        Assert-True ($rEdit.StatusCode -eq 200 -and $rEdit.Json.data.uraian -eq "Draft E2E Diperbarui PK") "Edit draft gagal: $($rEdit.Raw)"
+
         $rDel = Invoke-Api "DELETE" "/api/input-spj/$draftId"
         Assert-True ($rDel.StatusCode -eq 200 -and $rDel.Json.success) "Delete draft gagal: $($rDel.Raw)"
     }
@@ -450,7 +545,7 @@ try {
     $e2eTaxId = 0
     $e2eNetto = 0
 
-    Assert-Step "Create BKU SPJ BOS (with RKAS + Tax P5) & Workflow Approval 0->1->2->3->4 (NeedSudin)" {
+    Assert-Step "Create BKU SPJ BOS (with RKAS + Tax P5) & Strict Role Workflow Approval 0->1->2->3->4 (NeedSudin)" {
         $rCreate = Invoke-Api "POST" "/api/input-spj" @{
             sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
             tanggalTransaksi = "2026-03-15T00:00:00Z"; kodeTrx = "JJ"; jenisPembayaran = "TRANSFER"
@@ -479,25 +574,38 @@ try {
         $r1 = Invoke-Api "POST" "/api/workflow/pengajuan-pk/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "Ajukan E2E" }
         Assert-True ($r1.StatusCode -eq 200 -and $r1.Json.data.statusBku -eq 1) "Pengajuan PK gagal"
 
-        # Uji Tolak oleh TU lalu Ajukan Ulang oleh PK!
-        $rTolak = Invoke-Api "POST" "/api/workflow/approval-tu/$($script:e2eBkuId)" @{ disetujui = $false; catatan = "Revisi catatan E2E" }
-        Assert-True ($rTolak.StatusCode -eq 200 -and $rTolak.Json.data.statusBku -eq 9) "Reject TU gagal"
+        # Negative RBAC: PK tidak boleh approve TU / PA
+        $rPkTryTu = Invoke-Api "POST" "/api/workflow/approval-tu/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "Ilegal PK" }
+        Assert-True ($rPkTryTu.StatusCode -eq 403) "PK seharusnya ditolak 403 pada approval-tu (actual: $($rPkTryTu.StatusCode))"
+
+        $rPkTryPa = Invoke-Api "POST" "/api/workflow/approval-pa/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "Ilegal PK" }
+        Assert-True ($rPkTryPa.StatusCode -eq 403) "PK seharusnya ditolak 403 pada approval-pa (actual: $($rPkTryPa.StatusCode))"
+
+        # Uji Tolak oleh TU lalu PK Edit/Ajukan Ulang!
+        $rTolak = Invoke-Api "POST" "/api/workflow/approval-tu/$($script:e2eBkuId)" @{ disetujui = $false; catatan = "Revisi catatan E2E" } -Token $script:tuToken
+        Assert-True ($rTolak.StatusCode -eq 200 -and $rTolak.Json.data.statusBku -eq 9) "Reject TU gagal: $($rTolak.Raw)"
 
         $rReAjukan = Invoke-Api "POST" "/api/workflow/pengajuan-pk/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "Ajukan ulang pasca revisi E2E" }
         Assert-True ($rReAjukan.StatusCode -eq 200 -and $rReAjukan.Json.data.statusBku -eq 1) "Re-ajukan gagal"
 
-        $r2 = Invoke-Api "POST" "/api/workflow/approval-tu/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK TU E2E" }
-        Assert-True ($r2.StatusCode -eq 200 -and $r2.Json.data.statusBku -eq 2) "Approval TU gagal"
+        $r2 = Invoke-Api "POST" "/api/workflow/approval-tu/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK TU E2E" } -Token $script:tuToken
+        Assert-True ($r2.StatusCode -eq 200 -and $r2.Json.data.statusBku -eq 2) "Approval TU gagal: $($r2.Raw)"
 
-        $r3 = Invoke-Api "POST" "/api/workflow/approval-pa/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK PA E2E" }
-        Assert-True ($r3.StatusCode -eq 200 -and $r3.Json.data.statusBku -eq 3) "Approval PA gagal"
+        $rTuTryPa = Invoke-Api "POST" "/api/workflow/approval-pa/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "Ilegal TU" } -Token $script:tuToken
+        Assert-True ($rTuTryPa.StatusCode -eq 403) "TU seharusnya ditolak 403 pada approval-pa (actual: $($rTuTryPa.StatusCode))"
 
-        $r4 = Invoke-Api "POST" "/api/workflow/approval-sudin/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK Sudin E2E" }
-        Assert-True ($r4.StatusCode -eq 200 -and $r4.Json.data.statusBku -eq 4) "Approval Sudin gagal"
+        $r3 = Invoke-Api "POST" "/api/workflow/approval-pa/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK PA E2E" } -Token $script:paToken
+        Assert-True ($r3.StatusCode -eq 200 -and $r3.Json.data.statusBku -eq 3) "Approval PA gagal: $($r3.Raw)"
+
+        $r4 = Invoke-Api "POST" "/api/workflow/approval-sudin/$($script:e2eBkuId)" @{ disetujui = $true; catatan = "OK Sudin E2E" } -Token $script:dinasToken
+        Assert-True ($r4.StatusCode -eq 200 -and $r4.Json.data.statusBku -eq 4) "Approval Sudin gagal: $($r4.Raw)"
     }
 
-    Assert-Step "Pembayaran Token OTP PA + Reject OTP Salah + Transfer SPJ CMS Bank DKI" {
-        $rTok = Invoke-Api "POST" "/api/pembayaran/token" @{ bkuId = $script:e2eBkuId; nrk = "180101" }
+    Assert-Step "Pembayaran Token OTP PA + Reject PK Create Token + Reject OTP Salah + Transfer SPJ CMS Bank DKI" {
+        $rPkTok = Invoke-Api "POST" "/api/pembayaran/token" @{ bkuId = $script:e2eBkuId; nrk = "180101" }
+        Assert-True ($rPkTok.StatusCode -eq 403) "PK seharusnya ditolak 403 saat Permohonan Token OTP (actual: $($rPkTok.StatusCode))"
+
+        $rTok = Invoke-Api "POST" "/api/pembayaran/token" @{ bkuId = $script:e2eBkuId; nrk = "180101" } -Token $script:paToken
         Assert-True ($rTok.StatusCode -eq 200 -and $rTok.Json.success) "Create token OTP gagal: $($rTok.Raw)"
         $otp = $rTok.Json.data.token
 
@@ -531,13 +639,23 @@ try {
         Assert-True (-not [string]::IsNullOrWhiteSpace($rPay.Json.data.ntpn) -and -not [string]::IsNullOrWhiteSpace($rPay.Json.data.ntb)) "NTPN/NTB kosong"
     }
 
-    Assert-Step "Create Non-SPJ Jasa Giro (JG) & Verifikasi Summary/Dashboard API" {
-        $rJg = Invoke-Api "POST" "/api/input-spj" @{
-            sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
-            tanggalTransaksi = "2026-03-20T00:00:00Z"; kodeTrx = "JG"; uraian = "Bunga Jasa Giro Bank DKI E2E"
-            nominalNonSpj = 250000; detailItems = @(); taxItems = @()
+    Assert-Step "Validasi Kode Transaksi (Tolak JG/LL/ST; Izinkan JO/JJ/P1-P7) & Dashboard Summary API" {
+        foreach ($badKode in @("JG", "LL", "ST")) {
+            $rBadKode = Invoke-Api "POST" "/api/input-spj" @{
+                sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
+                tanggalTransaksi = "2026-03-20T00:00:00Z"; kodeTrx = $badKode; uraian = "Uji Kode Terlarang $badKode"
+                nominalNonSpj = 100000; detailItems = @(); taxItems = @()
+            }
+            Assert-True ($rBadKode.StatusCode -ge 400 -or -not $rBadKode.Json.success) "Kode transaksi terlarang $badKode seharusnya ditolak!"
         }
-        Assert-True ($rJg.StatusCode -eq 200 -and $rJg.Json.success) "Create Jasa Giro gagal: $($rJg.Raw)"
+
+        $rP5 = Invoke-Api "POST" "/api/input-spj" @{
+            sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
+            tanggalTransaksi = "2026-03-20T00:00:00Z"; kodeTrx = "P5"; jenisPembayaran = "TRANSFER"
+            uraian = "Pungutan/Setoran PPN P5 Standalone E2E"
+            nominalNonSpj = 110000; detailItems = @(); taxItems = @()
+        }
+        Assert-True ($rP5.StatusCode -eq 200 -and $rP5.Json.success) "Create transaksi pajak P5 gagal: $($rP5.Raw)"
 
         $rDash = Invoke-Api "GET" "/api/dashboard/summary?sekolahId=1&tahun=2026&sumberDana=BOS"
         Assert-True ($rDash.StatusCode -eq 200 -and $rDash.Json.data.saldo.totalDanaMasuk -gt 0) "Dashboard summary gagal"
@@ -564,11 +682,11 @@ try {
         Assert-True ($rBap.StatusCode -eq 200 -and $rBap.Json.success) "Save BAP Kas gagal: $($rBap.Raw)"
         $bapId = $rBap.Json.data.id
 
-        $rAp1 = Invoke-Api "POST" "/api/penutupan/bap-kas/$bapId/approve/1"
-        Assert-True ($rAp1.StatusCode -eq 200 -and $rAp1.Json.data.statusBap -eq 1) "Approve PA BAP Kas gagal"
+        $rAp1 = Invoke-Api "POST" "/api/penutupan/bap-kas/$bapId/approve/1" -Token $script:paToken
+        Assert-True ($rAp1.StatusCode -eq 200 -and $rAp1.Json.data.statusBap -eq 1) "Approve PA BAP Kas gagal: $($rAp1.Raw)"
 
-        $rAp2 = Invoke-Api "POST" "/api/penutupan/bap-kas/$bapId/approve/2"
-        Assert-True ($rAp2.StatusCode -eq 200 -and $rAp2.Json.data.statusBap -eq 2) "Approve Dinas BAP Kas gagal"
+        $rAp2 = Invoke-Api "POST" "/api/penutupan/bap-kas/$bapId/approve/2" -Token $script:dinasToken
+        Assert-True ($rAp2.StatusCode -eq 200 -and $rAp2.Json.data.statusBap -eq 2) "Approve Dinas BAP Kas gagal: $($rAp2.Raw)"
     }
 
     Assert-Step "Tutup Buku Periode 02 -> Batal Tutup Buku (Cleanup Lock)" {
@@ -586,22 +704,22 @@ try {
     Assert-Step "Setoran STS Create -> Process Sudin (2) -> Setor Lunas (3)" {
         $rSts = Invoke-Api "POST" "/api/penutupan/setoran-sts" @{
             sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOS"; kodePeriode = "01"
-            jenisSetoran = "JASA_GIRO"; uraian = "Setoran STS Jasa Giro E2E"; nilaiSetor = 100000
+            jenisSetoran = "SISA_BELANJA"; uraian = "Setoran STS Sisa Belanja E2E"; nilaiSetor = 100000
         }
         Assert-True ($rSts.StatusCode -eq 200 -and $rSts.Json.success) "Create STS gagal: $($rSts.Raw)"
         $script:e2eStsId = $rSts.Json.data.id
 
-        $rP2 = Invoke-Api "POST" "/api/penutupan/setoran-sts/$($script:e2eStsId)/process/2"
-        Assert-True ($rP2.StatusCode -eq 200 -and $rP2.Json.data.statusSts -eq 2) "STS approve Sudin gagal"
+        $rP2 = Invoke-Api "POST" "/api/penutupan/setoran-sts/$($script:e2eStsId)/process/2" -Token $script:dinasToken
+        Assert-True ($rP2.StatusCode -eq 200 -and $rP2.Json.data.statusSts -eq 2) "STS approve Sudin gagal: $($rP2.Raw)"
 
         $rP3 = Invoke-Api "POST" "/api/penutupan/setoran-sts/$($script:e2eStsId)/process/3"
         Assert-True ($rP3.StatusCode -eq 200 -and $rP3.Json.data.statusSts -eq 3) "STS setor Bank DKI gagal"
     }
 
     # ============================================================
-    # 7. MODUL KHUSUS BOP: NPD -> SIPKD -> DROPPING -> KOREKSI BKU
+    # 7. MODUL KHUSUS BOP: NPD -> SIPKD -> DROPPING -> BATAL TRANSFER SPJ (4-STAGE)
     # ============================================================
-    Write-Host "`n[7/9] Modul BOP (/api-bop): NPD -> SIPKD -> Dropping & Koreksi BKU" -ForegroundColor Cyan
+    Write-Host "`n[7/9] Modul BOP (/api-bop): NPD -> SIPKD -> Dropping & Batal Transfer SPJ (PK->TU->PA->SUDIN)" -ForegroundColor Cyan
 
     Assert-Step "NPD BOP Create -> Ajukan -> Approve PA -> Approve Sudin & Auto-SIPKD -> Confirm Dropping BOP" {
         $rNpd = Invoke-Api "POST" "/api-bop/npd" @{
@@ -614,10 +732,13 @@ try {
         $rAj = Invoke-Api "POST" "/api-bop/npd/$npdId/ajukan"
         Assert-True ($rAj.StatusCode -eq 200 -and $rAj.Json.data.statusNpd -eq 1) "Ajukan NPD gagal"
 
-        $rPa = Invoke-Api "POST" "/api-bop/npd/$npdId/approve-pa" @{ disetujui = $true; catatan = "OK PA NPD E2E" }
-        Assert-True ($rPa.StatusCode -eq 200 -and $rPa.Json.data.statusNpd -eq 2) "Approve PA NPD gagal"
+        $rPkTryPa = Invoke-Api "POST" "/api-bop/npd/$npdId/approve-pa" @{ disetujui = $true; catatan = "Ilegal PK" }
+        Assert-True ($rPkTryPa.StatusCode -eq 403) "PK seharusnya ditolak 403 saat approve-pa NPD (actual: $($rPkTryPa.StatusCode))"
 
-        $rSd = Invoke-Api "POST" "/api-bop/npd/$npdId/approve-sudin" @{ disetujui = $true; catatan = "Cair SIPKD E2E" }
+        $rPa = Invoke-Api "POST" "/api-bop/npd/$npdId/approve-pa" @{ disetujui = $true; catatan = "OK PA NPD E2E" } -Token $script:paToken
+        Assert-True ($rPa.StatusCode -eq 200 -and $rPa.Json.data.statusNpd -eq 2) "Approve PA NPD gagal: $($rPa.Raw)"
+
+        $rSd = Invoke-Api "POST" "/api-bop/npd/$npdId/approve-sudin" @{ disetujui = $true; catatan = "Cair SIPKD E2E" } -Token $script:sudinToken
         Assert-True ($rSd.StatusCode -eq 200 -and $rSd.Json.data.sipkd.responseCode -eq "00") "Approve Sudin SIPKD gagal: $($rSd.Raw)"
 
         # Cek Dropping BOP terbaru yang belum dikonfirmasi & langsung konfirmasi!
@@ -632,11 +753,11 @@ try {
         Assert-True ($saldoBopAfter -gt $saldoBopBefore) "Saldo BOP tidak bertambah setelah konfirmasi NPD SIPKD"
     }
 
-    Assert-Step "BOP BKU SPJ -> Transfer -> Koreksi KODE_AKUN & Koreksi BATAL_TRANSFER" {
+    Assert-Step "BOP BKU SPJ -> Transfer -> Batal Transfer SPJ 4-Stage (PK -> TU -> PA -> SUDIN + Refund Saldo)" {
         $rBkuBop = Invoke-Api "POST" "/api-bop/input-spj" @{
             sekolahId = 1; tahunAnggaran = 2026; sumberDana = "BOP"; kodePeriode = "TW1"
             tanggalTransaksi = "2026-03-18T00:00:00Z"; kodeTrx = "JJ"; jenisPembayaran = "TRANSFER"
-            uraian = "Servis AC Ruang Kelas E2E Koreksi"; namaRekanan = "PT. SEJUK PRIMA TEKNIK"
+            uraian = "Servis AC Ruang Kelas E2E Batal Transfer"; namaRekanan = "PT. SEJUK PRIMA TEKNIK"
             kodeBankRekanan = "014"; namaBankRekanan = "Bank BCA"; noRekRekanan = "5400881234"
             npwpRekanan = "02.555.666.7-033.000"; needSudinApproval = $false
             detailItems = @(@{
@@ -650,33 +771,63 @@ try {
         Assert-True ($rBkuBop.StatusCode -eq 200 -and $rBkuBop.Json.success) "Create BKU BOP gagal: $($rBkuBop.Raw)"
         $bkuBopId = $rBkuBop.Json.data.id
 
-        Invoke-Api "POST" "/api-bop/workflow/pengajuan-pk/$bkuBopId" @{ disetujui = $true } | Out-Null
-        Invoke-Api "POST" "/api-bop/workflow/approval-tu/$bkuBopId" @{ disetujui = $true } | Out-Null
-        Invoke-Api "POST" "/api-bop/workflow/approval-pa/$bkuBopId" @{ disetujui = $true } | Out-Null
-        $tok = (Invoke-Api "POST" "/api-bop/pembayaran/token" @{ bkuId = $bkuBopId; nrk = "180101" }).Json.data.token
-        $txBop = Invoke-Api "POST" "/api-bop/pembayaran/transfer" @{ bkuId = $bkuBopId; tokenOtp = $tok; executedBy = "e2e" }
+        $rB1 = Invoke-Api "POST" "/api-bop/workflow/pengajuan-pk/$bkuBopId" @{ disetujui = $true }
+        Assert-True ($rB1.StatusCode -eq 200) "Pengajuan PK BOP gagal"
+        $rB2 = Invoke-Api "POST" "/api-bop/workflow/approval-tu/$bkuBopId" @{ disetujui = $true } -Token $script:tuToken
+        Assert-True ($rB2.StatusCode -eq 200) "Approval TU BOP gagal"
+        $rB3 = Invoke-Api "POST" "/api-bop/workflow/approval-pa/$bkuBopId" @{ disetujui = $true } -Token $script:paToken
+        Assert-True ($rB3.StatusCode -eq 200) "Approval PA BOP gagal"
+        $tok = (Invoke-Api "POST" "/api-bop/pembayaran/token" @{ bkuId = $bkuBopId; nrk = "180101" } -Token $script:paToken).Json.data.token
+        $txBop = Invoke-Api "POST" "/api-bop/pembayaran/transfer" @{ bkuId = $bkuBopId; tokenOtp = $tok; executedBy = "bendahara.sman1" }
         Assert-True ($txBop.StatusCode -eq 200 -and $txBop.Json.success) "Transfer BKU BOP gagal: $($txBop.Raw)"
 
-        # Koreksi 1: KODE_AKUN
-        $rK1 = Invoke-Api "POST" "/api-bop/koreksi" @{
-            bkuTransactionId = $bkuBopId; jenisKoreksi = "KODE_AKUN"
-            kodeAkunSesudah = "5.1.02.01.01.0036"; alasan = "Penyesuaian akun belanja pemeliharaan E2E"
-        }
-        Assert-True ($rK1.StatusCode -eq 200 -and $rK1.Json.success) "Create koreksi akun gagal"
-        $rK1App = Invoke-Api "POST" "/api-bop/koreksi/$($rK1.Json.data.id)/approve-sudin" @{ disetujui = $true }
-        Assert-True ($rK1App.StatusCode -eq 200 -and $rK1App.Json.data.statusKoreksi -eq 2) "Approve koreksi akun gagal"
+        # Candidates modal query
+        $rCand = Invoke-Api "GET" "/api-bop/batal-transfer/spj-candidates?sekolahId=1&tahun=2026"
+        Assert-True ($rCand.StatusCode -eq 200 -and ($rCand.Json.data.id -contains $bkuBopId)) "Kandidat SPJ Batal Transfer tidak memuat BKU ID $bkuBopId"
 
-        # Koreksi 2: BATAL_TRANSFER (verify SaldoBop restored & status returns to Draft 0)
+        # Save Draft -> Edit Draft -> Detail -> 4-stage Approval
         $saldoBeforeRefund = (Invoke-Api "GET" "/auth-server/api/master/sekolah/1").Json.data.saldoBop
-        $rK2 = Invoke-Api "POST" "/api-bop/koreksi" @{
-            bkuTransactionId = $bkuBopId; jenisKoreksi = "BATAL_TRANSFER"
-            alasan = "Retur rekening rekanan uji E2E"
+        $rBtCreate = Invoke-Api "POST" "/api-bop/batal-transfer" @{
+            sekolahId = 1; bkuTransactionId = $bkuBopId; tahunAnggaran = 2026; sumberDana = "BOP"
+            jenisPeriode = "TW"; kodePeriode = "TW1"; nomorBeritaAcara = "BA-E2E-BOP-001"
+            tanggalPembatalan = "2026-03-25T00:00:00Z"; nrkPengkoreksi = "190202"; namaPengkoreksi = "Budi Bendahara E2E"
+            uraianBeritaAcara = "Draft batal transfer retur rekening rekanan E2E"; pajakTidakDikoreksi = $true; submitToTu = $false
         }
-        Assert-True ($rK2.StatusCode -eq 200 -and $rK2.Json.success) "Create batal transfer gagal"
-        $rK2App = Invoke-Api "POST" "/api-bop/koreksi/$($rK2.Json.data.id)/approve-sudin" @{ disetujui = $true }
-        Assert-True ($rK2App.StatusCode -eq 200 -and $rK2App.Json.data.statusKoreksi -eq 2) "Approve batal transfer gagal"
+        Assert-True ($rBtCreate.StatusCode -eq 200 -and $rBtCreate.Json.data.statusBatal -eq 0) "Create Draft Batal Transfer gagal: $($rBtCreate.Raw)"
+        $btId = $rBtCreate.Json.data.id
+
+        $rBtEdit = Invoke-Api "PUT" "/api-bop/batal-transfer/$btId" @{
+            sekolahId = 1; bkuTransactionId = $bkuBopId; tahunAnggaran = 2026; sumberDana = "BOP"
+            jenisPeriode = "TW"; kodePeriode = "TW1"; nomorBeritaAcara = "BA-E2E-BOP-001"
+            tanggalPembatalan = "2026-03-25T00:00:00Z"; nrkPengkoreksi = "190202"; namaPengkoreksi = "Budi Bendahara E2E"
+            uraianBeritaAcara = "Revisi Berita Acara Batal Transfer E2E"; pajakTidakDikoreksi = $true; submitToTu = $false
+        }
+        Assert-True ($rBtEdit.StatusCode -eq 200 -and $rBtEdit.Json.data.uraianBeritaAcara -eq "Revisi Berita Acara Batal Transfer E2E") "Edit Draft Batal Transfer gagal"
+
+        $rBtDet = Invoke-Api "GET" "/api-bop/batal-transfer/$btId"
+        Assert-True ($rBtDet.StatusCode -eq 200 -and $null -ne $rBtDet.Json.data.bkuTransaction) "Detail Batal Transfer gagal memuat SPJ"
+
+        $rBtPk = Invoke-Api "POST" "/api-bop/batal-transfer/$btId/ajukan-pk" @{ disetujui = $true; catatan = "Ajukan PK E2E" }
+        Assert-True ($rBtPk.StatusCode -eq 200 -and $rBtPk.Json.data.statusBatal -eq 1) "Ajukan PK Batal Transfer gagal"
+
+        # Negative RBAC 403
+        $rBtPkTryTu = Invoke-Api "POST" "/api-bop/batal-transfer/$btId/approve-tu" @{ disetujui = $true; catatan = "Ilegal PK" }
+        Assert-True ($rBtPkTryTu.StatusCode -eq 403) "PK seharusnya ditolak 403 pada approve-tu Batal Transfer"
+
+        $rBtTu = Invoke-Api "POST" "/api-bop/batal-transfer/$btId/approve-tu" @{ disetujui = $true; catatan = "OK TU" } -Token $script:tuToken
+        Assert-True ($rBtTu.StatusCode -eq 200 -and $rBtTu.Json.data.statusBatal -eq 2) "Approve TU Batal Transfer gagal"
+
+        $rBtPa = Invoke-Api "POST" "/api-bop/batal-transfer/$btId/approve-pa" @{ disetujui = $true; catatan = "OK PA" } -Token $script:paToken
+        Assert-True ($rBtPa.StatusCode -eq 200 -and $rBtPa.Json.data.statusBatal -eq 3) "Approve PA Batal Transfer gagal"
+
+        $rBtSudin = Invoke-Api "POST" "/api-bop/batal-transfer/$btId/approve-sudin" @{ disetujui = $true; catatan = "Disetujui Sudin E2E" } -Token $script:sudinToken
+        Assert-True ($rBtSudin.StatusCode -eq 200 -and $rBtSudin.Json.data.statusBatal -eq 4) "Approve Sudin Batal Transfer gagal: $($rBtSudin.Raw)"
+
         $saldoAfterRefund = (Invoke-Api "GET" "/auth-server/api/master/sekolah/1").Json.data.saldoBop
-        Assert-True ($saldoAfterRefund -eq ($saldoBeforeRefund + 800000)) "Saldo BOP tidak dikembalikan saat BATAL_TRANSFER"
+        Assert-True ($saldoAfterRefund -eq ($saldoBeforeRefund + 800000)) "Saldo BOP tidak dikembalikan saat Batal Transfer ($saldoBeforeRefund -> $saldoAfterRefund)"
+
+        $rBkuAfter = Invoke-Api "GET" "/api-bop/input-spj/$bkuBopId"
+        Assert-True ($rBkuAfter.StatusCode -eq 200 -and $rBkuAfter.Json.data.statusBku -eq 0) "Status SPJ harus kembali menjadi Draft (0) setelah Batal Transfer disetujui Sudin"
     }
 
     # ============================================================
@@ -706,6 +857,7 @@ try {
 
     $pdfRoutes = @(
         "/report-server/pdf/form22?sekolahId=1&tahun=2026&sumberDana=BOS",
+        "/report-server/pdf/laporan?sekolahId=1&tahun=2026&sumberDana=BOS&jenisLaporan=form22&jenisPeriode=TW&waktuPeriode=01",
         "/report-server/pdf/form23?sekolahId=1&tahun=2026&sumberDana=BOS",
         "/report-server/pdf/form25?sekolahId=1&tahun=2026&sumberDana=BOS",
         "/report-server/pdf/kartu-kendali?sekolahId=1&tahun=2026&sumberDana=BOS",
@@ -740,12 +892,21 @@ try {
         }
     }
 
-    Assert-Step "PostgreSQL Schema Verification (ONLY auth, oauth, siap — NO public/rkas tables)" {
+    Assert-Step "PostgreSQL Schema, Table & TrxCode Verification (ONLY auth,oauth,siap; NO trkoreksi_bku; ONLY JO/JJ/P1-P7)" {
         $psqlExe = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
         if (Test-Path $psqlExe) {
             $env:PGPASSWORD = $DbPassword
             $schemasRaw = (& $psqlExe -h localhost -p 5432 -U postgres -d siapbos_dummy_db -t -A -c "SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema;") -join ","
             Assert-True ($schemasRaw -eq "auth,oauth,siap") "Schema aktif harus tepat 'auth,oauth,siap' (actual: $schemasRaw)"
+
+            $hasBatal = (& $psqlExe -h localhost -p 5432 -U postgres -d siapbos_dummy_db -t -A -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='siap' AND table_name='trbatal_transfer_spj';").Trim()
+            Assert-True ([int]$hasBatal -eq 1) "Tabel siap.trbatal_transfer_spj tidak ditemukan"
+
+            $hasKoreksi = (& $psqlExe -h localhost -p 5432 -U postgres -d siapbos_dummy_db -t -A -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='siap' AND table_name='trkoreksi_bku';").Trim()
+            Assert-True ([int]$hasKoreksi -eq 0) "Tabel terlarang siap.trkoreksi_bku masih ada!"
+
+            $badTrxCount = (('SELECT COUNT(*) FROM siap.tmbkubos_bop WHERE "KodeTrx" NOT IN (''JO'',''JJ'',''P1'',''P2'',''P3'',''P4'',''P5'',''P6'',''P7'');' | & $psqlExe -h localhost -p 5432 -U postgres -d siapbos_dummy_db -t -A) -join "").Trim()
+            Assert-True ([int]$badTrxCount -eq 0) "Masih ada $badTrxCount baris BKU dengan KodeTrx selain JO/JJ/P1-P7!"
         }
     }
 } finally {

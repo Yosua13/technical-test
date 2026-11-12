@@ -1,18 +1,11 @@
-import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
-
-export interface MainMenuGroup {
-  kode: string;
-  nama: string;
-  link: string;
-  icon: string;
-  subMenus: { nama: string; link: string; icon: string }[];
-}
+import { AppMenu, AppModule } from '../../core/models/siapbos.models';
 
 export interface BeritaItem {
   id: number;
@@ -539,14 +532,14 @@ export interface PeraturanItem {
                   @if (showAppMenu()) {
                     <div class="app-dropdown-panel animate-page">
                       <div class="row g-2">
-                        @for (grp of mainMenus; track grp.kode) {
+                        @for (grp of auth.listAplikasi(); track grp.kodeAplikasi) {
                           <div class="col-md-4">
                             <div class="p-2 rounded-3 h-100" style="background: #FFFBF5;">
                               <div class="fw-bold small mb-2" style="color: #FF8000;">
                                 <i class="bi {{ grp.icon }} me-1"></i>{{ grp.nama }}
                               </div>
                               <div class="d-flex flex-column gap-1" style="max-height: 170px; overflow-y: auto;">
-                                @for (sub of grp.subMenus; track sub.link) {
+                                @for (sub of grp.menu; track sub.link) {
                                   <a class="text-decoration-none small px-2 py-1 rounded-2 text-dark"
                                      style="font-size: 0.78rem; cursor: pointer;"
                                      (click)="openSubMenu(grp, sub); showAppMenu.set(false)">
@@ -603,7 +596,7 @@ export interface PeraturanItem {
             <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('peraturan'); mobileMenuOpen.set(false)">Peraturan</a>
             <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('prosedur'); mobileMenuOpen.set(false)">Sistem dan Prosedur</a>
             @if (auth.isLoggedIn()) {
-              <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('aplikasi-section'); mobileMenuOpen.set(false)">5 Menu Aplikasi</a>
+              <a class="mobile-nav-link" href="javascript:void(0)" (click)="scrollTo('aplikasi-section'); mobileMenuOpen.set(false)">Menu Aplikasi</a>
               <a class="mobile-nav-link" href="javascript:void(0)" (click)="showPasswordModal.set(true); mobileMenuOpen.set(false)">Ganti Password</a>
               <button type="button" class="btn btn-cta-red w-100 rounded-pill mt-2" (click)="auth.logout(); mobileMenuOpen.set(false)">Log Out</button>
             } @else {
@@ -636,11 +629,12 @@ export interface PeraturanItem {
                     <i class="bi bi-arrow-right"></i>
                   </a>
                 } @else {
-                  <a routerLink="/bos-negeri/dashboard"
-                     class="btn btn-cta-red btn-lg rounded-pill px-4 py-3 d-inline-flex align-items-center justify-content-center gap-2 shadow">
+                  <button type="button"
+                          (click)="enterWorkspace()"
+                          class="btn btn-cta-red btn-lg rounded-pill px-4 py-3 d-inline-flex align-items-center justify-content-center gap-2 shadow">
                     <span>Masuk Aplikasi</span>
                     <i class="bi bi-arrow-right"></i>
-                  </a>
+                  </button>
                 }
                 <a href="javascript:void(0)"
                    (click)="scrollTo('prosedur')"
@@ -683,11 +677,11 @@ export interface PeraturanItem {
               </div>
 
               <div class="row g-3 justify-content-center mb-4">
-                @for (grp of mainMenus; track grp.kode) {
+                @for (grp of auth.listAplikasi(); track grp.kodeAplikasi) {
                   <div class="col-6 col-md-4 col-lg">
                     <div class="main-menu-card"
-                         [class.active]="selectedMenu().kode === grp.kode"
-                         (click)="selectedMenu.set(grp)">
+                         [class.active]="selectedApp()?.kodeAplikasi === grp.kodeAplikasi"
+                         (click)="selectedAppKode.set(grp.kodeAplikasi)">
                       <div class="menu-icon-circle">
                         <i class="bi {{ grp.icon }}"></i>
                       </div>
@@ -697,25 +691,27 @@ export interface PeraturanItem {
                 }
               </div>
 
-              <div class="siap-card p-4 animate-page">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
-                  <h6 class="fw-bold mb-0">
-                    <i class="bi {{ selectedMenu().icon }} me-2" style="color: #FF9A00;"></i>{{ selectedMenu().nama }}
-                  </h6>
-                  <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="openMainMenu(selectedMenu())">
-                    Buka {{ selectedMenu().nama }}
-                  </button>
-                </div>
+              @if (selectedApp(); as sel) {
+                <div class="siap-card p-4 animate-page">
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+                    <h6 class="fw-bold mb-0">
+                      <i class="bi {{ sel.icon }} me-2" style="color: #FF9A00;"></i>{{ sel.nama }}
+                    </h6>
+                    <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="openMainMenu(sel)">
+                      Buka {{ sel.nama }}
+                    </button>
+                  </div>
 
-                <div class="d-flex flex-wrap gap-2">
-                  @for (sub of selectedMenu().subMenus; track sub.link) {
-                    <a class="submenu-chip" (click)="openSubMenu(selectedMenu(), sub)">
-                      <i class="bi {{ sub.icon }}" style="color: #FF8000;"></i>
-                      <span>{{ sub.nama }}</span>
-                    </a>
-                  }
+                  <div class="d-flex flex-wrap gap-2">
+                    @for (sub of sel.menu; track sub.link) {
+                      <a class="submenu-chip" (click)="openSubMenu(sel, sub)">
+                        <i class="bi {{ sub.icon }}" style="color: #FF8000;"></i>
+                        <span>{{ sub.nama }}</span>
+                      </a>
+                    }
+                  </div>
                 </div>
-              </div>
+              }
             </div>
           </section>
         }
@@ -1110,124 +1106,12 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
     }
   ];
 
-  readonly mainMenus: MainMenuGroup[] = [
-    {
-      kode: 'UM',
-      nama: 'User Management',
-      link: 'user-management',
-      icon: 'bi-people-fill',
-      subMenus: [
-        { nama: 'Pengguna', link: 'pengguna', icon: 'bi-person-badge' },
-        { nama: 'Otoritas', link: 'otoritas', icon: 'bi-shield-lock' },
-        { nama: 'Aplikasi', link: 'aplikasi', icon: 'bi-grid-1x2' },
-        { nama: 'Menu', link: 'menu', icon: 'bi-list-nested' },
-        { nama: 'Periode', link: 'periode', icon: 'bi-calendar3' },
-        { nama: 'Master Sekolah', link: 'master-sekolah', icon: 'bi-building' },
-        { nama: 'Pajak', link: 'pajak', icon: 'bi-percent' }
-      ]
-    },
-    {
-      kode: 'BOS',
-      nama: 'BKU BOSP Negeri',
-      link: 'bos-negeri',
-      icon: 'bi-journal-bookmark-fill',
-      subMenus: [
-        { nama: 'Dashboard BKU BOSP', link: 'dashboard', icon: 'bi-speedometer2' },
-        { nama: 'Dropping Dana BOSP', link: 'konfirmasi-drop-dana', icon: 'bi-box-arrow-in-down' },
-        { nama: 'Konfirmasi Dropping Dana', link: 'dinas-konfirmasi-drop-dana', icon: 'bi-check2-circle' },
-        { nama: 'Input BKU BOSP', link: 'input-bku', icon: 'bi-journal-plus' },
-        { nama: 'Pengajuan Pembayaran BKU BOSP', link: 'pengajuan-bku', icon: 'bi-send-check' },
-        { nama: 'Persetujuan Pembayaran BKU BOSP (TU)', link: 'persetujuan-bku-tu', icon: 'bi-check2-square' },
-        { nama: 'Persetujuan Pembayaran BKU BOSP (PA)', link: 'persetujuan-bku-pa', icon: 'bi-award' },
-        { nama: 'Permohonan Token', link: 'permohonan-token', icon: 'bi-key-fill' },
-        { nama: 'Pembayaran BKU BOSP', link: 'pembayaran-bku', icon: 'bi-credit-card-2-front' },
-        { nama: 'Pembayaran Pajak BKU BOSP', link: 'pembayaran-pajak-bku', icon: 'bi-receipt-cutoff' },
-        { nama: 'Batal Transfer BKU BOSP', link: 'batal-transfer-spj', icon: 'bi-x-octagon' },
-        { nama: 'Setor Pendapatan Lain-Lain BOSP', link: 'setor-pendapatan-lain2-bos', icon: 'bi-arrow-return-left' },
-        { nama: 'Cetak Setor', link: 'cetak-setoran', icon: 'bi-printer' },
-        { nama: 'Persetujuan Setoran', link: 'persetujuan-setoran', icon: 'bi-patch-check' },
-        { nama: 'BAP KAS BOSP', link: 'bap-kas-bos', icon: 'bi-clipboard-data' },
-        { nama: 'Tutup BKU', link: 'tutup-bku', icon: 'bi-lock-fill' },
-        { nama: 'Batal Tutup BKU', link: 'batal-tutup-bku', icon: 'bi-unlock-fill' },
-        { nama: 'Mutasi 12 Transaksi BOSP', link: 'bos-mutasi-12', icon: 'bi-clock-history' },
-        { nama: 'Mutasi Semua Transaksi BOSP', link: 'bos-mutasi-semua', icon: 'bi-bank' },
-        { nama: 'Laporan BKU BOSP', link: 'laporan-BKU', icon: 'bi-file-earmark-pdf' },
-        { nama: 'List BKU BOSP', link: 'list-bku-bosp', icon: 'bi-table' },
-        { nama: 'Laporan Monitoring Dinas', link: 'laporan-monitoring-dinas', icon: 'bi-bar-chart-line' },
-        { nama: 'Pengajuan dan Persetujuan Pendapatan Lain-Lain', link: 'pengajuan-pendapatan-lain-lain', icon: 'bi-file-earmark-plus' },
-        { nama: 'Pembayaran Pindah Buku BOSP', link: 'pembayaran-pendapatan-lain-lain', icon: 'bi-arrow-left-right' },
-        { nama: 'Persetujuan Koreksi Periode Sebelum BOSP', link: 'persetujuan-koreksi-dinas-bos', icon: 'bi-check-all' },
-        { nama: 'Koreksi Periode Sebelum BOSP', link: 'input-bku-koreksi', icon: 'bi-pencil-square' },
-        { nama: 'Koreksi Tahun Lalu', link: 'input-bku-koreksi-tahun-lalu', icon: 'bi-journal-arrow-up' }
-      ]
-    },
-    {
-      kode: 'BOP',
-      nama: 'BKU BOP Negeri',
-      link: 'bku-bop',
-      icon: 'bi-bank2',
-      subMenus: [
-        { nama: 'Dashboard BKU BOP', link: 'dashboard', icon: 'bi-speedometer2' },
-        { nama: 'Permohonan NPD', link: 'konfirmasi-drop-dana-bop', icon: 'bi-file-earmark-text' },
-        { nama: 'Pengajuan Permohonan NPD', link: 'pengajuan-npd', icon: 'bi-send-plus' },
-        { nama: 'Persetujuan NPD', link: 'persetujuan-npd', icon: 'bi-check2-all' },
-        { nama: 'Input BKU BOP', link: 'input-bku', icon: 'bi-journal-plus' },
-        { nama: 'Pengajuan Pembayaran BKU BOP', link: 'pengajuan-pembayaran-bku', icon: 'bi-send-check' },
-        { nama: 'Persetujuan Pembayaran BKU BOP', link: 'persetujuan-bku', icon: 'bi-check2-square' },
-        { nama: 'Permohonan Token', link: 'permohonan-token', icon: 'bi-key-fill' },
-        { nama: 'Pembayaran BKU BOP', link: 'pembayaran-bku', icon: 'bi-credit-card-2-front' },
-        { nama: 'Pembayaran Pajak', link: 'pembayaran-pajak-bop', icon: 'bi-receipt-cutoff' },
-        { nama: 'Batal Transfer BKU BOP', link: 'batal-transfer-spj', icon: 'bi-x-octagon' },
-        { nama: 'Persetujuan Batal Transfer BKU BOP', link: 'persetujuan-batal-tf-spj', icon: 'bi-shield-check' },
-        { nama: 'Cetak Setoran BOP', link: 'cetak-setoran', icon: 'bi-printer' },
-        { nama: 'Persetujuan Setoran BOP', link: 'persetujuan-setoran', icon: 'bi-patch-check' },
-        { nama: 'BAP KAS BOP', link: 'bap-kas', icon: 'bi-clipboard-data' },
-        { nama: 'Batal Tutup BKU', link: 'batal-tutup-bku', icon: 'bi-unlock-fill' },
-        { nama: 'Tutup BKU', link: 'tutup-bku', icon: 'bi-lock-fill' },
-        { nama: 'Mutasi 12 Transaksi', link: 'mutasi-transfer-12-transaksi', icon: 'bi-clock-history' },
-        { nama: 'Laporan BKU BOP', link: 'laporan-BKU', icon: 'bi-file-earmark-pdf' },
-        { nama: 'BAP Kas Approval (Sudin)', link: 'bap-kas-approval-sudin', icon: 'bi-clipboard-check' },
-        { nama: 'Input Setor Sisa Belanja', link: 'setor-sisa-belanja', icon: 'bi-arrow-return-left' },
-        { nama: 'Batas Pengajuan Belanja', link: 'batas-pengajuan-belanja', icon: 'bi-calendar-event' },
-        { nama: 'BAP KAS Approval (PA)', link: 'bap-kas-approval-pa', icon: 'bi-clipboard2-check' },
-        { nama: 'Laporan Monitoring Sudin', link: 'laporan-monitoring-sudin', icon: 'bi-bar-chart-line' },
-        { nama: 'List BKU BOP', link: 'list-bku-bop', icon: 'bi-table' },
-        { nama: 'Pengajuan & Persetujuan Pendapatan Lain-Lain BOP', link: 'pengajuan-pendapatan-lain-lain-bop', icon: 'bi-file-earmark-plus' },
-        { nama: 'Pembayaran Pindah Buku BOP', link: 'pembayaran-pendapatan-lain-lain-bop', icon: 'bi-arrow-left-right' },
-        { nama: 'Persetujuan Koreksi Periode Sebelum BOP', link: 'persetujuan-koreksi-sudin-bop', icon: 'bi-check-all' },
-        { nama: 'Koreksi Periode Sebelum BOP', link: 'input-bku-koreksi', icon: 'bi-pencil-square' },
-        { nama: 'Mutasi Semua Transaksi BOP', link: 'bop-mutasi-semua', icon: 'bi-bank' }
-      ]
-    },
-    {
-      kode: 'ADMN',
-      nama: 'Administrator',
-      link: 'administrator',
-      icon: 'bi-sliders2-vertical',
-      subMenus: [
-        { nama: 'Batas Pengajuan Belanja', link: 'batas-pengajuan-belanja-list-opd', icon: 'bi-calendar-range' },
-        { nama: 'Help Desk Pembayaran BKU BOSP', link: 'help-pembayaran-bos', icon: 'bi-life-preserver' },
-        { nama: 'Help Desk Pembayaran BKU BOP', link: 'help-pembayaran-bop', icon: 'bi-headset' },
-        { nama: 'Help Desk Virtual Account PLN', link: 'help-va-pln', icon: 'bi-lightning-charge' },
-        { nama: 'Migrasi RKAS', link: 'konversi-data', icon: 'bi-file-earmark-spreadsheet' },
-        { nama: 'Dropping Dana BOS & BOP', link: 'dropping-dana', icon: 'bi-send-check' },
-        { nama: 'Konfirmasi Saldo Rekening', link: 'konfirmasi-rekening', icon: 'bi-bank2' }
-      ]
-    },
-    {
-      kode: 'HELP',
-      nama: 'Help Desk',
-      link: 'helpdesk',
-      icon: 'bi-headset',
-      subMenus: [
-        { nama: 'User Manual', link: 'user-manual', icon: 'bi-book-half' },
-        { nama: 'Help Desk', link: 'tiket-helpdesk', icon: 'bi-ticket-detailed' },
-        { nama: 'Video Tutorial', link: 'video-tutorial', icon: 'bi-play-btn' }
-      ]
-    }
-  ];
-
-  readonly selectedMenu = signal<MainMenuGroup>(this.mainMenus[1]);
+  readonly selectedAppKode = signal<string>('');
+  readonly selectedApp = computed<AppModule | null>(() => {
+    const apps = this.auth.listAplikasi();
+    if (!apps.length) return null;
+    return apps.find((a) => a.kodeAplikasi === this.selectedAppKode()) ?? apps[0];
+  });
 
   pwdForm = { nrk: '', sandiLama: '', sandiBaru: '', konfirmasiSandiBaru: '' };
 
@@ -1303,13 +1187,29 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  openMainMenu(grp: MainMenuGroup): void {
-    const firstSub = grp.subMenus[0]?.link || '';
-    this.router.navigateByUrl(`/${grp.link}/${firstSub}`);
+  enterWorkspace(): void {
+    const first = this.auth.getFirstAllowedRoute();
+    const meta = this.auth.findMenuMeta(first);
+    if (this.auth.requiresSchoolPicker() && !this.auth.sekolahConfirmed() && meta?.menu?.requiresSekolah) {
+      this.auth.openSekolahPicker(first);
+      return;
+    }
+    this.router.navigateByUrl(first);
   }
 
-  openSubMenu(grp: MainMenuGroup, sub: { nama: string; link: string }): void {
-    this.router.navigateByUrl(`/${grp.link}/${sub.link}`);
+  openMainMenu(grp: AppModule): void {
+    const firstSub = grp.menu[0];
+    if (!firstSub) return;
+    this.openSubMenu(grp, firstSub);
+  }
+
+  openSubMenu(grp: AppModule, sub: AppMenu): void {
+    const targetUrl = `/${grp.link}/${sub.link}`;
+    if (this.auth.requiresSchoolPicker() && !this.auth.sekolahConfirmed() && sub.requiresSekolah) {
+      this.auth.openSekolahPicker(targetUrl);
+      return;
+    }
+    this.router.navigateByUrl(targetUrl);
   }
 
   downloadPeraturanText(doc: PeraturanItem): void {
