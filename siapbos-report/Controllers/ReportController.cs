@@ -86,6 +86,13 @@ public class ReportController : ControllerBase
         return File(bytes, "application/pdf", $"STS_{stsId}.pdf");
     }
 
+    [HttpGet("/pdf/npd/{npdId:int}")]
+    public async Task<IActionResult> Npd(int npdId)
+    {
+        var bytes = await _pdf.GenerateNpdPdfAsync(npdId);
+        return File(bytes, "application/pdf", $"NPD_BOP_{npdId}.pdf");
+    }
+
     [HttpGet("/pdf/mutasi")]
     public async Task<IActionResult> Mutasi(
         [FromQuery] int sekolahId,

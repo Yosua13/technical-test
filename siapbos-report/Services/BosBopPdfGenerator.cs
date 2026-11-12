@@ -517,6 +517,82 @@ public class BosBopPdfGenerator
         return doc.GeneratePdf();
     }
 
+    public async Task<byte[]> GenerateNpdPdfAsync(int npdId)
+    {
+        var npd = await _db.NpdBops
+            .Include(n => n.Sekolah)
+            .Include(n => n.MigrasiPask!)
+            .ThenInclude(m => m.Rincians)
+            .FirstOrDefaultAsync(n => n.Id == npdId)
+            ?? throw new KeyNotFoundException("NPD BOP tidak ditemukan.");
+        var sekolah = npd.Sekolah ?? await _db.Sekolahs.FindAsync(npd.SekolahId) ?? new Sekolah();
+        var rincians = npd.MigrasiPask?.Rincians ?? [];
+
+        var doc = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(24);
+                page.DefaultTextStyle(x => x.FontSize(8.5f));
+
+                page.Content().Column(col =>
+                {
+                    ComposeKopAndSchool(col, "NOTA PENCAIRAN DANA (NPD) — BKU BOP NEGERI", $"Nomor NPD: {npd.NomorNpd}", sekolah, "BOP", npd.TahunAnggaran, npd.KodePeriode);
+
+                    col.Item().PaddingBottom(8).Border(0.75f).Padding(8).Column(hdr =>
+                    {
+                        hdr.Item().Text($"Program        : {npd.Program}").Bold();
+                        hdr.Item().Text($"Nomor DPA SKPD : {npd.NomorDpaSkpd}");
+                        hdr.Item().Text($"PASK / Subgiat : {npd.KodeSubgiat} - {npd.NamaPask}");
+                        hdr.Item().Text($"Uraian         : {npd.Uraian}");
+                        hdr.Item().Text($"Jumlah NPD     : {Rp(npd.NilaiPengajuan)}").Bold().FontColor(Colors.Orange.Darken3);
+                        if (!string.IsNullOrWhiteSpace(npd.NomorSipkd))
+                            hdr.Item().Text($"No. SIPKD      : {npd.NomorSipkd}").FontColor(Colors.Green.Darken2);
+                    });
+
+                    col.Item().Table(t =>
+                    {
+                        t.ColumnsDefinition(c =>
+                        {
+                            c.ConstantColumn(28);
+                            c.RelativeColumn(2.2f);
+                            c.RelativeColumn(1.4f);
+                            c.RelativeColumn(2.2f);
+                            c.RelativeColumn(1.1f);
+                            c.RelativeColumn(1.1f);
+                            c.RelativeColumn(1.1f);
+                            c.RelativeColumn(1.1f);
+                        });
+                        t.Header(h =>
+                        {
+                            foreach (var lbl in new[] { "No", "Nama Kegiatan", "Kode Rekening", "Nama Rekening", "Anggaran", "AKB Periode", "Nilai Sebelum", "NPD" })
+                                h.Cell().Element(HeaderCellStyle).Text(lbl).FontColor(Colors.White).Bold();
+                        });
+                        int idx = 1;
+                        foreach (var r in rincians)
+                        {
+                            var alt = idx % 2 == 0;
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).AlignCenter().Text(idx.ToString());
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).Text(r.NamaKegiatan);
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).Text(r.KodeRekening);
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).Text(r.NamaRekening);
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).AlignRight().Text(Rp(r.Anggaran));
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).AlignRight().Text(Rp(r.AkbPerPeriode));
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).AlignRight().Text(Rp(r.NilaiSebelum));
+                            t.Cell().Element(c => BodyCellStyle(c, alt)).AlignRight().Text(Rp(r.NilaiNpd)).Bold();
+                            idx++;
+                        }
+                    });
+
+                    ComposeSignatures(col, sekolah, npd.TanggalNpd.ToString("dd MMMM yyyy", IdCulture));
+                });
+            });
+        });
+
+        return doc.GeneratePdf();
+    }
+
     public async Task<byte[]> GenerateMutasiPdfAsync(int sekolahId, string sumberDana, bool limit12 = false, DateTime? startDate = null, DateTime? endDate = null)
     {
         var sekolah = await _db.Sekolahs.FindAsync(sekolahId) ?? throw new KeyNotFoundException("Sekolah tidak ditemukan.");

@@ -41,7 +41,7 @@ public class AdminDashboardController : ControllerBase
             lunasTransfer = allBku.Count(b => b.StatusBku == StatusBkuFlow.LunasTransfer),
             pajakBelumLunas = allBku.SelectMany(b => b.TaxItems).Count(t => t.StatusPajak != StatusPajakFlow.LunasNtpn),
             droppingPending = await _db.DroppingDanas.CountAsync(d => d.SekolahId == sekolahId && d.TahunAnggaran == tahun && d.SumberDana == sumberDana && !d.IsConfirmedToBku),
-            npdMenungguSudin = await _db.NpdBops.CountAsync(n => n.SekolahId == sekolahId && n.TahunAnggaran == tahun && n.StatusNpd == 2)
+            npdMenungguSudin = await _db.NpdBops.CountAsync(n => n.SekolahId == sekolahId && n.TahunAnggaran == tahun && n.StatusNpd == StatusDanaFlow.DisetujuiPa)
         };
 
         var chartBulanan = Enumerable.Range(1, 6).Select(bulan =>
@@ -121,6 +121,26 @@ public class AdminDashboardController : ControllerBase
         _db.RkasItems.Add(item);
         await _db.SaveChangesAsync();
         return Ok(ApiResponse<RkasItem>.Ok(item, "Komponen RKAS berhasil ditambahkan."));
+    }
+
+    [HttpGet("/api/migrasi-dana")]
+    public async Task<ActionResult<ApiResponse<List<MigrasiPask>>>> GetAllMigrasiDana(
+        [FromQuery] int tahun = 2026,
+        [FromQuery] int? sekolahId = null,
+        [FromQuery] string? sumberDana = null)
+    {
+        var query = _db.MigrasiPasks
+            .Include(m => m.Sekolah)
+            .Include(m => m.Rincians)
+            .Where(m => m.TahunAnggaran == tahun);
+
+        if (sekolahId.HasValue && sekolahId.Value > 0)
+            query = query.Where(m => m.SekolahId == sekolahId.Value);
+
+        if (!string.IsNullOrWhiteSpace(sumberDana))
+            query = query.Where(m => m.SumberDana == sumberDana);
+
+        return Ok(ApiResponse<List<MigrasiPask>>.Ok(await query.OrderByDescending(m => m.Id).ToListAsync()));
     }
 
     [HttpGet("/api/admin/dropping")]
