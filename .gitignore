@@ -9,6 +9,7 @@
 .run-pids.json
 
 # Local Upload & Storage Cache
+uploads/
 siapbos-uploader/Storage/
 siapbos-uploader/storage/
 Storage/
