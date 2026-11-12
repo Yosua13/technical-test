@@ -17,80 +17,83 @@ import { ToastService } from '../../core/services/toast.service';
       <div class="container position-relative" style="z-index: 2;">
         <div class="card border-0 overflow-hidden mx-auto login-shell animate-page">
           <div class="row g-0">
-            <!-- Left Executive Brand Showcase Panel -->
+            <!-- Left #FF9A00 Creative Brand Showcase Panel -->
             <div class="col-lg-5 d-none d-lg-flex flex-column justify-content-between p-4 p-xl-5 text-white left-editorial">
               <div>
-                <a routerLink="/landingpage" class="text-decoration-none text-white-50 small d-inline-flex align-items-center gap-1 mb-4 hover-white">
-                  <i class="bi bi-arrow-left"></i> Kembali ke Portal Informasi
+                <a routerLink="/landingpage" class="text-decoration-none text-white small d-inline-flex align-items-center gap-1 mb-4 fw-semibold" style="opacity: 0.9;">
+                  <i class="bi bi-arrow-left"></i> Kembali ke Landing Page
                 </a>
-                <div class="d-flex align-items-center gap-2 mb-3">
-                  <div class="bg-white rounded-3 p-1 shadow-sm">
-                    <img src="assets/img/login/Logo.png" alt="SIAP Logo" height="44">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                  <div class="logo-crest-dark">
+                    <img src="assets/img/login/Logo.png" alt="Logo Resmi SIAP BOS" width="52" height="52">
                   </div>
                   <div>
-                    <div class="fw-bold fs-5 lh-1">SIAP BOSP &amp; BOP</div>
-                    <small class="text-white-50">Dinas Pendidikan Provinsi DKI Jakarta</small>
+                    <div class="fw-extrabold fs-4 lh-1">SIAP BOSP &amp; BOP</div>
+                    <small class="text-white" style="opacity: 0.9;">Dinas Pendidikan Provinsi DKI Jakarta</small>
                   </div>
                 </div>
-                <p class="small text-white-50 mb-0" style="line-height: 1.6;">
-                  Sistem Penatausahaan &amp; Pelaporan Keuangan Sekolah Negeri Terintegrasi Bank DKI CMS, Pajak DJP MPN, SIPKD, dan SIMPEG.
-                </p>
               </div>
 
-              <div class="text-center my-3 p-3 rounded-4" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);">
-                <img src="assets/img/login/SIAP%20BOS_login_ilustrasi.png"
+              <div class="text-center my-2 p-3 rounded-4 bg-white shadow-sm">
+                <img src="assets/img/login/SIAP BOS_login_ilustrasi.png"
                      alt="Ilustrasi SIAP BOS"
                      class="img-fluid animate-float"
-                     style="max-height: 235px; object-fit: contain;">
+                     style="max-height: 240px; object-fit: contain;">
               </div>
 
               <div class="d-flex flex-wrap gap-2">
-                <span class="badge rounded-pill fw-normal px-3 py-2" style="background: rgba(245,158,11,0.18); color: #fcd34d;">
-                  <i class="bi bi-shield-lock me-1"></i>JWT Auth + Captcha
+                <span class="badge rounded-pill bg-white text-dark fw-bold px-3 py-2">
+                  <i class="bi bi-grid-1x2-fill text-warning me-1"></i>5 Menu Utama
                 </span>
-                <span class="badge rounded-pill fw-normal px-3 py-2" style="background: rgba(16,185,129,0.18); color: #6ee7b7;">
-                  <i class="bi bi-hdd-network me-1"></i>6 Microservices
+                <span class="badge rounded-pill bg-white text-dark fw-bold px-3 py-2">
+                  <i class="bi bi-database-check text-warning me-1"></i>Schema: auth · oauth · siap
                 </span>
               </div>
             </div>
 
-            <!-- Right Form Panel (Crisp High-Contrast & Zero Premature Validation) -->
+            <!-- Right Form Panel -->
             <div class="col-lg-7 p-4 p-md-5 bg-white d-flex flex-column justify-content-center">
-              <div class="d-flex justify-content-between align-items-start mb-4">
-                <div>
-                  <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill mb-2">Otentikasi Pengguna</span>
-                  <h4 class="fw-bold mb-1 text-dark">Masuk ke SIAP BOSP &amp; BOP</h4>
-                  <p class="text-muted small mb-0">Gunakan Username, NRK Pegawai, atau NIP terdaftar.</p>
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex align-items-center gap-3">
+                  <div class="siap-logo-emblem">
+                    <img src="assets/img/login/Logo.png" alt="Logo SIAP BOS" width="44" height="44">
+                  </div>
+                  <div>
+                    <div class="fw-extrabold text-uppercase small" style="color: #FF8000; letter-spacing: 0.04em;">
+                      SIAP BOSP &amp; BOP DKI JAKARTA
+                    </div>
+                    <h4 class="fw-bold mb-0 text-dark">Selamat Datang, Silakan Login</h4>
+                  </div>
                 </div>
-                <a routerLink="/landingpage" class="d-lg-none btn btn-sm btn-outline-secondary rounded-pill">
-                  <i class="bi bi-house"></i>
+                <a routerLink="/landingpage" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                  <i class="bi bi-house me-1"></i>Home
                 </a>
               </div>
 
               <form [formGroup]="form" (ngSubmit)="onSubmit()">
                 <div class="row g-3 mb-3">
                   <div class="col-sm-5">
-                    <label class="form-label small fw-semibold text-secondary">Tahun Anggaran</label>
-                    <select class="form-select rounded-3" formControlName="tahunAnggaran">
+                    <label class="form-label small fw-bold text-secondary">Tahun Anggaran</label>
+                    <select class="form-select rounded-3 fw-semibold" formControlName="tahunAnggaran">
                       @for (y of availableYears(); track y.tahun) {
                         <option [ngValue]="y.tahun">{{ y.label }}</option>
                       }
                     </select>
                   </div>
                   <div class="col-sm-7">
-                    <label class="form-label small fw-semibold text-secondary">ID Login (Username / NRK)</label>
-                    <input type="text" class="form-control rounded-3"
-                           placeholder="Contoh: bendahara.sman1"
+                    <label class="form-label small fw-bold text-secondary">ID Login (Username / NRK)</label>
+                    <input type="text" class="form-control rounded-3 fw-semibold"
+                           placeholder="Contoh: ADMIN-TDI"
                            formControlName="username">
                   </div>
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label small fw-semibold text-secondary">Password</label>
+                  <label class="form-label small fw-bold text-secondary">Password</label>
                   <div class="input-group">
                     <input [type]="showPass() ? 'text' : 'password'"
                            class="form-control rounded-start-3 border-end-0"
-                           placeholder="Masukkan Password"
+                           placeholder="Masukkan Password (mis. MonaS123!)"
                            formControlName="password">
                     <button class="btn btn-outline-secondary rounded-end-3 border-start-0 px-3"
                             type="button" (click)="showPass.set(!showPass())" title="Tampilkan / Sembunyikan Password">
@@ -101,10 +104,10 @@ import { ToastService } from '../../core/services/toast.service';
 
                 <!-- Captcha Row -->
                 <div class="mb-4">
-                  <label class="form-label small fw-semibold text-secondary">Verifikasi Keamanan (Captcha)</label>
+                  <label class="form-label small fw-bold text-secondary">Kode Captcha (Ketik atau Klik Kode di Kanan)</label>
                   <div class="row g-2 align-items-center">
                     <div class="col-6">
-                      <input type="text" class="form-control rounded-3 text-uppercase fw-semibold"
+                      <input type="text" class="form-control rounded-3 text-uppercase fw-bold"
                              [class.is-invalid]="form.controls.captchaInput.invalid && (form.controls.captchaInput.touched || submitted())"
                              placeholder="Ketik 5 karakter" formControlName="captchaInput">
                     </div>
@@ -120,11 +123,11 @@ import { ToastService } from '../../core/services/toast.service';
                 </div>
 
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                  <button class="btn btn-siap flex-grow-1 rounded-pill py-2 fw-semibold" type="submit" [disabled]="loading()">
+                  <button class="btn btn-siap flex-grow-1 rounded-pill py-2 fw-bold" type="submit" [disabled]="loading()">
                     @if (loading()) {
                       <span class="spinner-border spinner-border-sm me-2"></span>Memverifikasi...
                     } @else {
-                      <i class="bi bi-box-arrow-in-right me-2"></i>Masuk Workspace
+                      <i class="bi bi-box-arrow-in-right me-2"></i>SIGN IN
                     }
                   </button>
                   <button class="btn btn-outline-secondary rounded-pill px-3 py-2 small fw-semibold"
@@ -136,20 +139,26 @@ import { ToastService } from '../../core/services/toast.service';
 
               <!-- One-Click Demo Accounts Panel -->
               <div class="border-top pt-3 mt-1">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
                   <span class="small fw-bold text-dark">
-                    <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Akses Cepat Akun Demo (Interview):
+                    <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Login Cepat Akun Referensi &amp; Demo:
                   </span>
-                  <span class="badge bg-light text-muted border">Sandi: password123</span>
+                  <span class="badge rounded-pill" style="background: #FFF3E0; color: #D97706;">
+                    ADMIN-TDI = MonaS123! (2025)
+                  </span>
                 </div>
                 <div class="d-flex flex-wrap gap-1">
                   @for (acc of demoAccounts(); track acc.username) {
                     <button type="button"
-                            class="btn btn-sm btn-outline-dark rounded-pill px-2 py-1 demo-chip"
-                            (click)="quickDemoLogin(acc.username)"
+                            class="btn btn-sm rounded-pill px-2 py-1 demo-chip"
+                            [class.demo-chip-primary]="acc.username === 'ADMIN-TDI'"
+                            (click)="quickDemoLogin(acc)"
                             [disabled]="loading()">
-                      <span class="badge bg-warning text-dark me-1">{{ acc.roleCode }}</span>
-                      <span>{{ acc.username }}</span>
+                      <span class="badge me-1"
+                            [ngClass]="acc.username === 'ADMIN-TDI' ? 'bg-white text-dark' : 'bg-warning text-dark'">
+                        {{ acc.roleCode }}
+                      </span>
+                      <span class="fw-semibold">{{ acc.username }}</span>
                     </button>
                   }
                 </div>
@@ -171,12 +180,12 @@ import { ToastService } from '../../core/services/toast.service';
           <div class="modal-body-scroll">
             <div class="btn-group w-100 bg-light p-1 rounded-pill border mb-3">
               <button type="button" class="btn btn-sm rounded-pill fw-semibold"
-                      [class.btn-navy]="passwordTab() === 'change'"
+                      [class.btn-siap]="passwordTab() === 'change'"
                       (click)="passwordTab.set('change')">
-                Ganti Password (Tahu Sandi Lama)
+                Ganti Password
               </button>
               <button type="button" class="btn btn-sm rounded-pill fw-semibold"
-                      [class.btn-navy]="passwordTab() === 'forgot'"
+                      [class.btn-siap]="passwordTab() === 'forgot'"
                       (click)="passwordTab.set('forgot')">
                 Lupa Password (OTP NRK)
               </button>
@@ -186,7 +195,7 @@ import { ToastService } from '../../core/services/toast.service';
               <form [formGroup]="resetForm" (ngSubmit)="submitChangePassword()">
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">Username / NRK</label>
-                  <input type="text" class="form-control" formControlName="nrk" placeholder="Contoh: bendahara.sman1 atau 199003">
+                  <input type="text" class="form-control" formControlName="nrk" placeholder="Contoh: ADMIN-TDI atau 199003">
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">Sandi Lama</label>
@@ -203,13 +212,13 @@ import { ToastService } from '../../core/services/toast.service';
               </form>
             } @else {
               <form [formGroup]="forgotForm" (ngSubmit)="submitForgotPassword()">
-                <div class="alert alert-info py-2 px-3 small mb-3">
+                <div class="alert alert-warning py-2 px-3 small mb-3">
                   <i class="bi bi-info-circle me-1"></i>
                   Reset mandiri menggunakan NRK/Username + kode OTP verifikasi. Untuk simulasi demo gunakan kode OTP: <strong>123456</strong>.
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">Username / NRK Terdaftar</label>
-                  <input type="text" class="form-control" formControlName="identifier" placeholder="Contoh: bendahara.sman1">
+                  <input type="text" class="form-control" formControlName="identifier" placeholder="Contoh: ADMIN-TDI">
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">Kode OTP SIMPEG/Email (Demo: 123456)</label>
@@ -232,60 +241,78 @@ import { ToastService } from '../../core/services/toast.service';
   `,
   styles: [`
     .login-canvas {
-      background: radial-gradient(circle at top left, #16213e 0%, #0b132b 70%);
+      background: linear-gradient(135deg, #FFF5E4 0%, #FFE0B2 50%, #FFCC80 100%);
     }
     .login-glow {
       position: absolute;
       border-radius: 50%;
       filter: blur(80px);
       pointer-events: none;
-      opacity: 0.35;
+      opacity: 0.45;
     }
     .login-glow-1 {
-      width: 360px;
-      height: 360px;
-      background: #f59e0b;
+      width: 380px;
+      height: 380px;
+      background: #FF9A00;
       top: -100px;
       right: -60px;
     }
     .login-glow-2 {
-      width: 300px;
-      height: 300px;
-      background: #2563eb;
+      width: 320px;
+      height: 320px;
+      background: #FF6D00;
       bottom: -90px;
       left: -60px;
     }
     .login-shell {
       max-width: 1040px;
-      border-radius: 24px;
-      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(255, 122, 0, 0.22);
+      border: 2px solid rgba(255, 154, 0, 0.35) !important;
     }
     .left-editorial {
-      background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+      background: linear-gradient(155deg, #FF9A00 0%, #FF7700 65%, #E65100 100%);
     }
-    .hover-white:hover {
-      color: #fff !important;
+    .logo-crest-dark {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+    }
+    .logo-crest-dark img {
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
     }
     .captcha-box {
-      background: #0f172a;
-      color: #fbbf24;
-      border: 1px solid #334155;
+      background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+      color: #9A3412;
+      border: 2px dashed #FF9A00;
       transition: transform 0.15s ease, background-color 0.2s ease;
     }
     .captcha-box:hover {
-      background: #1e293b;
+      background: #FFE0B2;
       transform: translateY(-1px);
     }
     .demo-chip {
-      font-size: 0.72rem;
-      border-color: #e2e8f0;
+      font-size: 0.74rem;
+      border: 1px solid rgba(255, 154, 0, 0.35);
+      background: #FFFBF5;
+      color: #1e293b;
       transition: all 0.18s ease;
     }
     .demo-chip:hover {
-      border-color: #f59e0b;
-      background-color: #fffbeb;
-      color: #0f172a;
+      border-color: #FF9A00;
+      background-color: #FFF3E0;
       transform: translateY(-1px);
+    }
+    .demo-chip-primary {
+      background: linear-gradient(135deg, #FF9A00 0%, #E67E00 100%);
+      color: #ffffff !important;
+      border-color: #FF9A00;
     }
   `]
 })
@@ -299,8 +326,8 @@ export class LoginComponent implements OnInit {
   readonly captchaToken = signal('');
   readonly demoAccounts = signal<any[]>([]);
   readonly availableYears = signal<any[]>([
+    { tahun: 2025, label: '2025 (Referensi SIAP Training)' },
     { tahun: 2026, label: '2026 (Tahun Berjalan)' },
-    { tahun: 2025, label: '2025' },
     { tahun: 2024, label: '2024' }
   ]);
   readonly loading = signal(false);
@@ -310,9 +337,9 @@ export class LoginComponent implements OnInit {
   readonly passwordTab = signal<'change' | 'forgot'>('change');
 
   readonly form = this.fb.nonNullable.group({
-    tahunAnggaran: [2026, Validators.required],
-    username: ['bendahara.sman1', Validators.required],
-    password: ['password123', Validators.required],
+    tahunAnggaran: [2025, Validators.required],
+    username: ['ADMIN-TDI', Validators.required],
+    password: ['MonaS123!', Validators.required],
     captchaInput: ['', Validators.required]
   });
 
@@ -330,7 +357,7 @@ export class LoginComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.auth.isLoggedIn()) {
-      this.router.navigate(['/landingpage']);
+      this.router.navigate(['/bos-negeri/dashboard']);
       return;
     }
     this.loadCaptcha();
@@ -384,8 +411,8 @@ export class LoginComponent implements OnInit {
         next: (res) => {
           this.loading.set(false);
           if (res.success) {
-            this.toast.success(`Selamat datang, ${res.data.user.namaLengkap}`);
-            this.router.navigate(['/landingpage']);
+            this.toast.success(`Selamat datang, ${res.data.user.namaLengkap} (TA ${res.data.tahunAnggaran})`);
+            this.router.navigate(['/bos-negeri/dashboard']);
           }
         },
         error: (err) => {
@@ -396,13 +423,17 @@ export class LoginComponent implements OnInit {
       });
   }
 
-  quickDemoLogin(username: string): void {
+  quickDemoLogin(acc: any): void {
+    const username = typeof acc === 'string' ? acc : acc.username;
+    const password = acc?.defaultPassword || (username === 'ADMIN-TDI' ? 'MonaS123!' : 'password123');
+    const tahun = username === 'ADMIN-TDI' ? 2025 : (this.form.value.tahunAnggaran || 2025);
+    this.form.patchValue({ username, password, tahunAnggaran: tahun });
     this.loading.set(true);
     this.auth
       .login({
         username,
-        password: 'password123',
-        tahunAnggaran: this.form.value.tahunAnggaran || 2026,
+        password,
+        tahunAnggaran: tahun,
         captchaInput: '',
         captchaToken: '',
         skipCaptchaDemo: true
@@ -411,8 +442,8 @@ export class LoginComponent implements OnInit {
         next: (res) => {
           this.loading.set(false);
           if (res.success) {
-            this.toast.success(`Login Cepat: ${res.data.user.namaLengkap} (${res.data.user.roleCode})`);
-            this.router.navigate(['/landingpage']);
+            this.toast.success(`Login Berhasil: ${res.data.user.namaLengkap} (${res.data.user.roleCode})`);
+            this.router.navigate(['/bos-negeri/dashboard']);
           }
         },
         error: () => this.loading.set(false)

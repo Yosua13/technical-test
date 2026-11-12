@@ -1,14 +1,15 @@
 :root {
-  --siap-navy: #0b132b;
-  --siap-navy-mid: #16213e;
-  --siap-navy-soft: #1e293b;
-  --siap-orange: #f59e0b;
-  --siap-orange-dark: #ea580c;
-  --siap-amber-soft: #fef3c7;
-  --siap-accent-red: #ef4444;
-  --siap-bg: #f4f6fb;
-  --siap-surface: #ffffff;
-  --siap-border: rgba(15, 23, 42, 0.08);
+  --siap-orange: #FF9A00;
+  --siap-orange-dark: #E68900;
+  --siap-orange-deep: #FF3800;
+  --siap-amber-soft: #FFF4E0;
+  --siap-navy: #1E293B;
+  --siap-navy-mid: #334155;
+  --siap-navy-soft: #475569;
+  --siap-accent-red: #FF3800;
+  --siap-bg: #F7F8FC;
+  --siap-surface: #FFFFFF;
+  --siap-border: rgba(255, 154, 0, 0.16);
   --siap-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --siap-ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -16,13 +17,31 @@
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: var(--siap-bg);
-  color: #0f172a;
+  color: #1e293b;
   font-size: 0.9rem;
   -webkit-font-smoothing: antialiased;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Official SIAP BOS Logo Badge (ensures white Logo.png is always high-contrast & crystal clear) */
+.siap-logo-emblem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #FF9A00 0%, #FF7700 100%);
+  border-radius: 16px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 22px rgba(255, 154, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.65);
+}
+
+.siap-logo-emblem img {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
 }
 
 /* ==========================================================================
@@ -83,9 +102,9 @@ body {
 }
 
 @keyframes pulseRing {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
-  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 154, 0, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 154, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 154, 0, 0); }
 }
 
 @keyframes shimmer {
@@ -110,33 +129,33 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background-color: #10b981;
+  background-color: #FF9A00;
   display: inline-block;
   animation: pulseRing 2.2s infinite;
 }
 
 .siap-skeleton {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, #fff3e0 25%, #fff8eb 50%, #fff3e0 75%);
   background-size: 800px 100%;
   animation: shimmer 1.4s infinite linear;
   border-radius: 10px;
 }
 
 /* ==========================================================================
-   MODERN EXECUTIVE SURFACES & CONTROLS
+   CREATIVE #FF9A00 SURFACES & CONTROLS
    ========================================================================== */
 .btn-siap {
-  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+  background: linear-gradient(135deg, #FF9A00 0%, #E67E00 100%);
   border: none;
   color: #fff !important;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 154, 0, 0.32);
   transition: transform 0.2s var(--siap-ease-out), box-shadow 0.2s var(--siap-ease-out), filter 0.2s ease;
 }
 
 .btn-siap:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+  box-shadow: 0 8px 22px rgba(255, 154, 0, 0.44);
   filter: brightness(1.04);
 }
 
@@ -145,38 +164,38 @@ body {
 }
 
 .btn-navy {
-  background: linear-gradient(135deg, #0b132b 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #FF3800 0%, #FF7700 100%);
   border: none;
   color: #fff !important;
-  font-weight: 600;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.22);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 56, 0, 0.25);
   transition: transform 0.2s var(--siap-ease-out), box-shadow 0.2s var(--siap-ease-out);
 }
 
 .btn-navy:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.32);
+  box-shadow: 0 8px 22px rgba(255, 56, 0, 0.35);
 }
 
 .siap-card {
-  border: 1px solid var(--siap-border);
-  border-radius: 16px;
+  border: 1px solid rgba(255, 154, 0, 0.14);
+  border-radius: 18px;
   background: var(--siap-surface);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03), 0 10px 26px rgba(255, 154, 0, 0.05);
   transition: transform 0.25s var(--siap-ease-out), box-shadow 0.25s var(--siap-ease-out), border-color 0.25s ease;
 }
 
 .siap-card-interactive:hover {
   transform: translateY(-4px);
-  border-color: rgba(245, 158, 11, 0.45);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  border-color: rgba(255, 154, 0, 0.55);
+  box-shadow: 0 14px 32px rgba(255, 154, 0, 0.14);
 }
 
 .siap-card-header {
-  background: rgba(248, 250, 252, 0.72);
-  border-bottom: 1px solid var(--siap-border);
+  background: linear-gradient(90deg, rgba(255, 154, 0, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border-bottom: 1px solid rgba(255, 154, 0, 0.15);
   padding: 1rem 1.25rem;
-  border-radius: 16px 16px 0 0;
+  border-radius: 18px 18px 0 0;
 }
 
 .table-siap {
@@ -185,13 +204,13 @@ body {
 }
 
 .table-siap thead th {
-  background-color: #f8fafc;
-  color: #475569;
+  background-color: #FFF9F0;
+  color: #7C2D12;
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.09);
+  border-bottom: 1px solid rgba(255, 154, 0, 0.22);
   white-space: nowrap;
   padding: 0.8rem 0.85rem;
 }
@@ -208,20 +227,20 @@ body {
 
 .summary-kpi-card {
   border-radius: 16px;
-  border: 1px solid var(--siap-border);
+  border: 1px solid rgba(255, 154, 0, 0.18);
   background: #fff;
   padding: 1.05rem 1.2rem;
   height: 100%;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 2px 10px rgba(255, 154, 0, 0.05);
   transition: transform 0.25s var(--siap-ease-out), box-shadow 0.25s var(--siap-ease-out), border-color 0.25s ease;
 }
 
 .summary-kpi-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.07);
-  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow: 0 14px 28px rgba(255, 154, 0, 0.12);
+  border-color: rgba(255, 154, 0, 0.45);
 }
 
 .summary-kpi-card::before {
@@ -230,13 +249,13 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background: var(--kpi-accent, var(--siap-orange));
+  width: 5px;
+  background: var(--kpi-accent, #FF9A00);
 }
 
 .progress {
   border-radius: 999px;
-  background-color: #e2e8f0;
+  background-color: #FFF0D4;
   overflow: hidden;
 }
 
@@ -248,7 +267,7 @@ body {
 .modal-backdrop-custom {
   position: fixed;
   inset: 0;
-  background: rgba(11, 19, 43, 0.58);
+  background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(5px);
   z-index: 1050;
   display: flex;
@@ -265,7 +284,7 @@ body {
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 60px rgba(11, 19, 43, 0.32);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
   overflow: hidden;
   animation: modalPop 0.28s var(--siap-ease-spring) both;
 }
