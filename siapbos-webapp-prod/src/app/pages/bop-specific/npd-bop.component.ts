@@ -15,60 +15,57 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
   template: `
     <app-sekolah-bar sumberDana="BOP" (sekolahChanged)="loadNpd()" />
 
-    <!-- Header & Quick Switcher -->
+    <!-- Header -->
     <div class="alert alert-primary bg-primary bg-opacity-10 border-primary-subtle d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div class="small">
         <i class="bi bi-diagram-3-fill me-1 text-primary"></i>
         <strong>Alur Pencairan NPD BOP → SIPKD BPKD:</strong>
         <span>Draft Bendahara (0) → Diajukan ke PA (1) → Disetujui Kepala Sekolah (2) → Disetujui Sudin &amp; Kirim Otomatis ke SIPKD (4) → Terbit Dropping BOP</span>
       </div>
-      <div class="d-flex gap-1 align-items-center">
-        <span class="small text-muted me-1">Role Demo:</span>
-        <button class="btn btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('PK-NEGERI')">PK</button>
-        <button class="btn btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('PA-NEGERI')">PA</button>
-        <button class="btn btn-outline-dark btn-sm py-0 px-2" (click)="switchTo('SUDIN')">SUDIN</button>
-      </div>
+      <span class="badge badge-neutral rounded-pill px-3">{{ auth.currentUser()?.roleCode }}</span>
     </div>
 
     <div class="row g-3">
-      <!-- Form Buat Draft NPD BOP -->
-      <div class="col-lg-4">
-        <div class="siap-card p-3">
-          <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
-            <i class="bi bi-file-earmark-plus text-warning fs-5"></i>
-            Buat Pengajuan NPD BOP
-          </h6>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Triwulan / Periode BOP</label>
-            <select class="form-select" [(ngModel)]="form.kodePeriode">
-              <option value="TW1">TW1 - Triwulan I (Jan - Mar)</option>
-              <option value="TW2">TW2 - Triwulan II (Apr - Jun)</option>
-              <option value="TW3">TW3 - Triwulan III (Jul - Sep)</option>
-              <option value="TW4">TW4 - Triwulan IV (Okt - Des)</option>
-            </select>
+      <!-- Form Buat Draft NPD BOP (Hanya PK-NEGERI / ADMIN-TDI) -->
+      @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+        <div class="col-lg-4">
+          <div class="siap-card p-3">
+            <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+              <i class="bi bi-file-earmark-plus text-warning fs-5"></i>
+              Buat Pengajuan NPD BOP
+            </h6>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Triwulan / Periode BOP</label>
+              <select class="form-select" [(ngModel)]="form.kodePeriode">
+                <option value="TW1">TW1 - Triwulan I (Jan - Mar)</option>
+                <option value="TW2">TW2 - Triwulan II (Apr - Jun)</option>
+                <option value="TW3">TW3 - Triwulan III (Jul - Sep)</option>
+                <option value="TW4">TW4 - Triwulan IV (Okt - Des)</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Uraian Kebutuhan Pencairan NPD</label>
+              <textarea class="form-control" rows="3" [(ngModel)]="form.uraian"
+                        placeholder="Contoh: Pengajuan Pencairan BOP Triwulan II Belanja Honorarium, Langganan Daya & Jasa, dan Pemeliharaan"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Nilai Pengajuan (Rp)</label>
+              <input type="number" class="form-control fw-bold tabular-nums" [(ngModel)]="form.nilaiPengajuan" min="100000" step="100000">
+              <small class="text-muted">Otomatis akan menerbitkan SP2D Dropping BOP setelah disetujui Sudin &amp; terkirim ke SIPKD.</small>
+            </div>
+            <button class="btn btn-siap w-100 rounded-pill py-2" (click)="createNpd()" [disabled]="submitting()">
+              @if (submitting()) {
+                <span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...
+              } @else {
+                <i class="bi bi-save me-1"></i>Simpan Draft NPD BOP
+              }
+            </button>
           </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Uraian Kebutuhan Pencairan NPD</label>
-            <textarea class="form-control" rows="3" [(ngModel)]="form.uraian"
-                      placeholder="Contoh: Pengajuan Pencairan BOP Triwulan II Belanja Honorarium, Langganan Daya & Jasa, dan Pemeliharaan"></textarea>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Nilai Pengajuan (Rp)</label>
-            <input type="number" class="form-control fw-bold tabular-nums" [(ngModel)]="form.nilaiPengajuan" min="100000" step="100000">
-            <small class="text-muted">Otomatis akan menerbitkan SP2D Dropping BOP setelah disetujui Sudin &amp; terkirim ke SIPKD.</small>
-          </div>
-          <button class="btn btn-siap w-100 rounded-pill py-2" (click)="createNpd()" [disabled]="submitting()">
-            @if (submitting()) {
-              <span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...
-            } @else {
-              <i class="bi bi-save me-1"></i>Simpan Draft NPD BOP
-            }
-          </button>
         </div>
-      </div>
+      }
 
       <!-- Tabel Daftar Pengajuan NPD BOP -->
-      <div class="col-lg-8">
+      <div [class]="auth.hasRole('PK-NEGERI', 'ADMIN-TDI') ? 'col-lg-8' : 'col-12'">
         <div class="siap-card">
           <div class="siap-card-header d-flex justify-content-between align-items-center">
             <div>
@@ -116,29 +113,41 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
                     <td><app-status-badge kind="npd" [value]="n.statusNpd" /></td>
                     <td class="text-end text-nowrap">
                       @if (n.statusNpd === 0) {
-                        <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="ajukan(n)">
-                          <i class="bi bi-send me-1"></i>Ajukan ke PA
-                        </button>
+                        @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                          <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="ajukan(n)">
+                            <i class="bi bi-send me-1"></i>Ajukan ke PA
+                          </button>
+                        } @else {
+                          <span class="badge bg-light text-secondary border">Draft PK</span>
+                        }
                       }
                       @if (n.statusNpd === 1) {
-                        <div class="btn-group btn-group-sm">
-                          <button class="btn btn-primary" (click)="approvePa(n, true)">
-                            <i class="bi bi-check-lg me-1"></i>Setuju PA
-                          </button>
-                          <button class="btn btn-outline-danger" (click)="approvePa(n, false)" title="Tolak NPD">
-                            <i class="bi bi-x-lg"></i>
-                          </button>
-                        </div>
+                        @if (auth.hasRole('PA-NEGERI', 'ADMIN-TDI')) {
+                          <div class="btn-group btn-group-sm">
+                            <button class="btn btn-primary" (click)="approvePa(n, true)">
+                              <i class="bi bi-check-lg me-1"></i>Setuju PA
+                            </button>
+                            <button class="btn btn-outline-danger" (click)="approvePa(n, false)" title="Tolak NPD">
+                              <i class="bi bi-x-lg"></i>
+                            </button>
+                          </div>
+                        } @else {
+                          <span class="badge bg-info-subtle text-info-emphasis border">Menunggu PA</span>
+                        }
                       }
                       @if (n.statusNpd === 2) {
-                        <div class="btn-group btn-group-sm">
-                          <button class="btn btn-success" (click)="approveSudin(n, true)">
-                            <i class="bi bi-send-check me-1"></i>Setuju Sudin &amp; Kirim SIPKD
-                          </button>
-                          <button class="btn btn-outline-danger" (click)="approveSudin(n, false)" title="Tolak Sudin">
-                            <i class="bi bi-x-lg"></i>
-                          </button>
-                        </div>
+                        @if (auth.hasRole('SUDIN', 'ADMIN-DINAS', 'ADMIN-TDI')) {
+                          <div class="btn-group btn-group-sm">
+                            <button class="btn btn-success" (click)="approveSudin(n, true)">
+                              <i class="bi bi-send-check me-1"></i>Setuju Sudin &amp; Kirim SIPKD
+                            </button>
+                            <button class="btn btn-outline-danger" (click)="approveSudin(n, false)" title="Tolak Sudin">
+                              <i class="bi bi-x-lg"></i>
+                            </button>
+                          </div>
+                        } @else {
+                          <span class="badge bg-primary-subtle text-primary border">Menunggu Sudin</span>
+                        }
                       }
                       @if (n.statusNpd === 4) {
                         <span class="text-success small fw-semibold"><i class="bi bi-check2-all me-1"></i>SP2D Terbit</span>
@@ -170,10 +179,6 @@ export class NpdBopComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadNpd();
-  }
-
-  switchTo(role: string): void {
-    this.auth.quickSwitchRole(role).subscribe();
   }
 
   loadNpd(): void {
@@ -223,9 +228,8 @@ export class NpdBopComponent implements OnInit {
   }
 
   approvePa(n: NpdBop, disetujui: boolean): void {
-    const role = this.auth.currentUser()?.roleCode;
-    if (role !== 'PA-NEGERI' && role !== 'ADMIN-DINAS') {
-      this.toast.info('Silakan pindah role demo ke PA (Kepala Sekolah) terlebih dahulu.');
+    if (!this.auth.hasRole('PA-NEGERI', 'ADMIN-TDI', 'ADMIN-DINAS')) {
+      this.toast.error('Hanya akun Kepala Sekolah (PA) atau ADMIN-TDI yang berwenang menyetujui NPD.');
       return;
     }
     this.api.approveNpdPa(n.id, disetujui).subscribe({
@@ -238,9 +242,8 @@ export class NpdBopComponent implements OnInit {
   }
 
   approveSudin(n: NpdBop, disetujui: boolean): void {
-    const role = this.auth.currentUser()?.roleCode;
-    if (role !== 'SUDIN' && role !== 'ADMIN-DINAS') {
-      this.toast.info('Silakan pindah role demo ke SUDIN terlebih dahulu.');
+    if (!this.auth.hasRole('SUDIN', 'ADMIN-TDI', 'ADMIN-DINAS')) {
+      this.toast.error('Hanya akun Suku Dinas (SUDIN) atau ADMIN-TDI yang berwenang menyetujui NPD Sudin.');
       return;
     }
     this.api.approveNpdSudin(n.id, disetujui).subscribe({

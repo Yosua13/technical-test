@@ -1,6 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -9,6 +9,7 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
 import { StatusBadgeComponent } from '../../shared/components/status-badge.component';
 
 interface TaxRow extends BkuTaxItem {
+  bkuId: number;
   bkuNomor: string;
   bkuUraian: string;
   bkuStatus: number;
@@ -84,25 +85,38 @@ interface TaxRow extends BkuTaxItem {
                 </td>
                 <td><app-status-badge kind="tax" [value]="t.statusPajak ?? 0" /></td>
                 <td class="text-end text-nowrap">
-                  @if (t.statusPajak === 0) {
-                    <button class="btn btn-sm btn-warning fw-semibold" (click)="runAction(t, 'create')">
-                      <i class="bi bi-qr-code me-1"></i>Buat Kode Billing
+                  <div class="d-inline-flex align-items-center gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" title="Lihat Detail BKU" (click)="goToDetail(t.bkuId)">
+                      <i class="bi bi-eye me-1"></i>Detail
                     </button>
-                  } @else if (t.statusPajak === 1) {
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-outline-info" (click)="runAction(t, 'inquiry')">Inquiry</button>
-                      <button class="btn btn-siap" (click)="runAction(t, 'payment')" [disabled]="t.bkuStatus < 3">
-                        <i class="bi bi-cash-stack me-1"></i>Bayar NTPN
-                      </button>
-                      <button class="btn btn-outline-secondary" title="Reset Billing" (click)="runAction(t, 'reset')">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                      </button>
-                    </div>
-                  } @else {
-                    <a class="btn btn-sm btn-outline-success fw-semibold" [href]="'/report-server/pdf/bpn/' + t.id" target="_blank">
-                      <i class="bi bi-file-earmark-check me-1"></i>Cetak BPN Pajak
-                    </a>
-                  }
+                    @if (t.statusPajak === 0) {
+                      @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                        <button class="btn btn-sm btn-warning fw-semibold" (click)="runAction(t, 'create')">
+                          <i class="bi bi-qr-code me-1"></i>Buat Kode Billing
+                        </button>
+                      } @else {
+                        <span class="badge bg-light text-secondary border">Menunggu PK</span>
+                      }
+                    } @else if (t.statusPajak === 1) {
+                      @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-outline-info" (click)="runAction(t, 'inquiry')">Inquiry</button>
+                          <button class="btn btn-siap" (click)="runAction(t, 'payment')" [disabled]="t.bkuStatus < 3">
+                            <i class="bi bi-cash-stack me-1"></i>Bayar NTPN
+                          </button>
+                          <button class="btn btn-outline-secondary" title="Reset Billing" (click)="runAction(t, 'reset')">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                          </button>
+                        </div>
+                      } @else {
+                        <span class="badge bg-warning-subtle text-dark border">Billing Aktif (PK)</span>
+                      }
+                    } @else {
+                      <a class="btn btn-sm btn-outline-success fw-semibold" [href]="'/report-server/pdf/bpn/' + t.id" target="_blank">
+                        <i class="bi bi-file-earmark-check me-1"></i>Cetak BPN Pajak
+                      </a>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -114,11 +128,13 @@ interface TaxRow extends BkuTaxItem {
 })
 export class PembayaranPajakComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly api = inject(SiapBosApiService);
   private readonly toast = inject(ToastService);
 
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
+  readonly basePath = computed(() => (this.sumberDana() === 'BOP' ? '/bku-bop' : '/bos-negeri'));
   readonly bkus = signal<BkuTransaction[]>([]);
 
   readonly taxRows = computed<TaxRow[]>(() => {
@@ -127,6 +143,7 @@ export class PembayaranPajakComponent implements OnInit {
       for (const t of b.taxItems || []) {
         rows.push({
           ...t,
+          bkuId: b.id,
           bkuNomor: b.nomorBku,
           bkuUraian: b.uraian,
           bkuStatus: b.statusBku
@@ -157,5 +174,9 @@ export class PembayaranPajakComponent implements OnInit {
         if (action === 'payment') this.auth.loadSekolahOptions().subscribe();
       }
     });
+  }
+
+  goToDetail(bkuId: number): void {
+    this.router.navigate([this.basePath(), 'input-bku', 'detail', bkuId]);
   }
 }

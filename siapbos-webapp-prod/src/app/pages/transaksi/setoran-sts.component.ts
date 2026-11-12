@@ -22,14 +22,13 @@ import { SekolahBarComponent } from '../../shared/components/sekolah-bar.compone
           <div class="mb-2">
             <label class="form-label small fw-semibold">Jenis Setoran</label>
             <select class="form-select form-select-sm" [(ngModel)]="form.jenisSetoran">
-              <option value="JASA_GIRO">Setor Jasa Giro Bank DKI</option>
               <option value="SISA_BELANJA">Pengembalian Sisa Belanja</option>
               <option value="PENDAPATAN_LAIN">Setoran Pendapatan Lain-lain</option>
             </select>
           </div>
           <div class="mb-2">
             <label class="form-label small fw-semibold">Uraian Setoran</label>
-            <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="form.uraian" placeholder="Penyetoran sisa jasa giro..."></textarea>
+            <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="form.uraian" placeholder="Penyetoran pengembalian sisa belanja ke RKUD..."></textarea>
           </div>
           <div class="mb-3">
             <label class="form-label small fw-semibold">Nominal Setoran (Rp)</label>
@@ -105,7 +104,7 @@ export class SetoranStsComponent implements OnInit {
 
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
   readonly items = signal<SetoranSts[]>([]);
-  form = { jenisSetoran: 'JASA_GIRO', uraian: 'Penyetoran Jasa Giro Rekening Sekolah ke RKUD', nilaiSetor: 125000 };
+  form = { jenisSetoran: 'SISA_BELANJA', uraian: 'Penyetoran pengembalian sisa belanja ke RKUD', nilaiSetor: 125000 };
 
   ngOnInit(): void {
     this.sumberDana.set((this.route.snapshot.data['sumberDana'] as 'BOS' | 'BOP') || 'BOS');

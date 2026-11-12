@@ -1,7 +1,7 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -88,22 +88,32 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
                 </td>
                 <td><app-status-badge kind="bku" [value]="b.statusBku" /></td>
                 <td class="text-end text-nowrap">
-                  @if (b.statusBku === 3 || b.statusBku === 4) {
-                    <div class="d-flex justify-content-end gap-1">
-                      <button class="btn btn-sm btn-outline-primary fw-semibold" (click)="openTokenModal(b)">
-                        <i class="bi bi-key-fill me-1"></i>{{ b.tokenOtpPa ? 'Regen Token' : 'Permohonan Token PA' }}
-                      </button>
-                      <button class="btn btn-sm btn-siap" [disabled]="!b.tokenOtpPa" (click)="openTransferModal(b)">
-                        <i class="bi bi-send-check me-1"></i>Transfer CMS
-                      </button>
-                    </div>
-                  } @else if (b.statusBku === 5) {
-                    <a class="btn btn-sm btn-outline-danger" [href]="'/report-server/pdf/spj/' + b.id" target="_blank">
-                      <i class="bi bi-file-earmark-pdf me-1"></i>Cetak SPJ
-                    </a>
-                  } @else {
-                    <span class="text-muted small">Menunggu Persetujuan PA</span>
-                  }
+                  <div class="d-inline-flex align-items-center gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" title="Lihat Detail BKU" (click)="goToDetail(b.id)">
+                      <i class="bi bi-eye me-1"></i>Detail
+                    </button>
+                    @if (b.statusBku === 3 || b.statusBku === 4) {
+                      @if (auth.hasRole('PA-NEGERI', 'ADMIN-TDI')) {
+                        <button class="btn btn-sm btn-outline-primary fw-semibold" (click)="openTokenModal(b)">
+                          <i class="bi bi-key-fill me-1"></i>{{ b.tokenOtpPa ? 'Regen Token' : 'Permohonan Token PA' }}
+                        </button>
+                      }
+                      @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                        <button class="btn btn-sm btn-siap" [disabled]="!b.tokenOtpPa" (click)="openTransferModal(b)">
+                          <i class="bi bi-send-check me-1"></i>Transfer CMS
+                        </button>
+                      }
+                      @if (!auth.hasRole('PA-NEGERI', 'PK-NEGERI', 'ADMIN-TDI')) {
+                        <span class="badge bg-light text-secondary border">Menunggu Eksekusi PA/PK</span>
+                      }
+                    } @else if (b.statusBku === 5) {
+                      <a class="btn btn-sm btn-outline-danger" [href]="'/report-server/pdf/spj/' + b.id" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Cetak SPJ
+                      </a>
+                    } @else {
+                      <span class="text-muted small">Menunggu Persetujuan PA</span>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -166,11 +176,13 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
 })
 export class PembayaranBkuComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly api = inject(SiapBosApiService);
   private readonly toast = inject(ToastService);
 
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
+  readonly basePath = computed(() => (this.sumberDana() === 'BOP' ? '/bku-bop' : '/bos-negeri'));
   readonly items = signal<BkuTransaction[]>([]);
   readonly tokenModalBku = signal<BkuTransaction | null>(null);
   readonly transferModalBku = signal<BkuTransaction | null>(null);
@@ -227,5 +239,9 @@ export class PembayaranBkuComponent implements OnInit {
         this.auth.loadSekolahOptions().subscribe();
       }
     });
+  }
+
+  goToDetail(id: number): void {
+    this.router.navigate([this.basePath(), 'input-bku', 'detail', id]);
   }
 }

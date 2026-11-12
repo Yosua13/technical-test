@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { SiapBosApiService } from '../../core/services/siapbos-api.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -16,19 +16,14 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
   template: `
     <app-sekolah-bar [sumberDana]="sumberDana()" (sekolahChanged)="loadData()" />
 
-    <!-- Role Context Banner + Quick Switch Hint -->
+    <!-- Role Context Banner -->
     <div class="siap-card px-3 py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div class="small text-secondary">
         <i class="bi bi-shield-check me-1 text-dark"></i>
         Role Login Aktif: <strong class="text-dark">{{ auth.currentUser()?.roleCode }} ({{ auth.currentUser()?.namaLengkap }})</strong> ·
         Alur: <strong class="text-dark">PK (0→1) → TU (1→2) → PA (2→3) → CMS</strong>
       </div>
-      <div class="d-flex gap-1">
-        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('PK-NEGERI')">PK</button>
-        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('TU-NEGERI')">TU</button>
-        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('PA-NEGERI')">PA</button>
-        <button class="btn btn-xs btn-neutral btn-sm py-0 px-2" (click)="switchTo('SUDIN')">SUDIN</button>
-      </div>
+      <span class="badge badge-neutral rounded-pill px-3">Sumber Dana: {{ sumberDana() }}</span>
     </div>
 
     <!-- Pipeline Tabs -->
@@ -95,32 +90,53 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
                   }
                 </td>
                 <td class="text-end text-nowrap">
-                  @if (b.statusBku === 0 || b.statusBku === 9) {
-                    <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="ajukanPk(b)">
-                      <i class="bi bi-send me-1"></i>Ajukan ke TU
+                  <div class="d-inline-flex align-items-center gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" title="Lihat Detail BKU" (click)="goToDetail(b.id)">
+                      <i class="bi bi-eye me-1"></i>Detail
                     </button>
-                  } @else if (b.statusBku === 1) {
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-success" (click)="approveTu(b, true)">
-                        <i class="bi bi-check-lg me-1"></i>Setujui TU
-                      </button>
-                      <button class="btn btn-outline-danger" (click)="approveTu(b, false)">Tolak</button>
-                    </div>
-                  } @else if (b.statusBku === 2) {
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-primary" (click)="approvePa(b, true)">
-                        <i class="bi bi-check-lg me-1"></i>Setujui PA (Kepsek)
-                      </button>
-                      <button class="btn btn-outline-danger" (click)="approvePa(b, false)">Tolak</button>
-                    </div>
-                  } @else if (b.statusBku === 3 && b.needSudinApproval) {
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-warning" (click)="approveSudin(b, true)">Setujui Sudin</button>
-                      <button class="btn btn-outline-danger" (click)="approveSudin(b, false)">Tolak</button>
-                    </div>
-                  } @else {
-                    <span class="badge bg-success-subtle text-success">Selesai Persetujuan</span>
-                  }
+                    @if (b.statusBku === 0 || b.statusBku === 9) {
+                      @if (auth.hasRole('PK-NEGERI', 'ADMIN-TDI')) {
+                        <button class="btn btn-sm btn-siap rounded-pill px-3" (click)="ajukanPk(b)">
+                          <i class="bi bi-send me-1"></i>Ajukan ke TU
+                        </button>
+                      } @else {
+                        <span class="badge bg-light text-secondary border">Menunggu PK</span>
+                      }
+                    } @else if (b.statusBku === 1) {
+                      @if (auth.hasRole('TU-NEGERI', 'ADMIN-TDI')) {
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-success" (click)="approveTu(b, true)">
+                            <i class="bi bi-check-lg me-1"></i>Setujui TU
+                          </button>
+                          <button class="btn btn-outline-danger" (click)="approveTu(b, false)">Tolak</button>
+                        </div>
+                      } @else {
+                        <span class="badge bg-info-subtle text-info-emphasis border">Menunggu Verifikasi TU</span>
+                      }
+                    } @else if (b.statusBku === 2) {
+                      @if (auth.hasRole('PA-NEGERI', 'ADMIN-TDI')) {
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-primary" (click)="approvePa(b, true)">
+                            <i class="bi bi-check-lg me-1"></i>Setujui PA (Kepsek)
+                          </button>
+                          <button class="btn btn-outline-danger" (click)="approvePa(b, false)">Tolak</button>
+                        </div>
+                      } @else {
+                        <span class="badge bg-primary-subtle text-primary border">Menunggu Persetujuan PA</span>
+                      }
+                    } @else if (b.statusBku === 3 && b.needSudinApproval) {
+                      @if (auth.hasRole('SUDIN', 'ADMIN-DINAS', 'ADMIN-TDI')) {
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-warning" (click)="approveSudin(b, true)">Setujui Sudin</button>
+                          <button class="btn btn-outline-danger" (click)="approveSudin(b, false)">Tolak</button>
+                        </div>
+                      } @else {
+                        <span class="badge bg-warning-subtle text-dark border">Menunggu Sudin</span>
+                      }
+                    } @else {
+                      <span class="badge bg-success-subtle text-success">Selesai Persetujuan</span>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -132,11 +148,13 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
 })
 export class PersetujuanBkuComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly api = inject(SiapBosApiService);
   private readonly toast = inject(ToastService);
 
   readonly sumberDana = signal<'BOS' | 'BOP'>('BOS');
+  readonly basePath = computed(() => (this.sumberDana() === 'BOP' ? '/bku-bop' : '/bos-negeri'));
   readonly items = signal<BkuTransaction[]>([]);
   readonly activeTab = signal<'pk' | 'tu' | 'pa' | 'siap' | 'lunas'>('tu');
 
@@ -152,6 +170,14 @@ export class PersetujuanBkuComponent implements OnInit {
 
   ngOnInit(): void {
     this.sumberDana.set((this.route.snapshot.data['sumberDana'] as 'BOS' | 'BOP') || 'BOS');
+    const tab = this.route.snapshot.data['defaultTab'] as 'pk' | 'tu' | 'pa' | undefined;
+    if (tab) {
+      this.activeTab.set(tab);
+    } else if (this.auth.hasRole('PK-NEGERI')) {
+      this.activeTab.set('pk');
+    } else if (this.auth.hasRole('PA-NEGERI')) {
+      this.activeTab.set('pa');
+    }
     this.loadData();
   }
 
@@ -174,10 +200,6 @@ export class PersetujuanBkuComponent implements OnInit {
       if (key === 'siap') return b.statusBku === 3 || b.statusBku === 4;
       return b.statusBku === 5;
     });
-  }
-
-  switchTo(role: string): void {
-    this.auth.quickSwitchRole(role).subscribe();
   }
 
   ajukanPk(b: BkuTransaction): void {
@@ -204,5 +226,9 @@ export class PersetujuanBkuComponent implements OnInit {
     this.api.approveSudin(this.sumberDana(), b.id, ok, ok ? 'Disetujui Sudin' : 'Ditolak Sudin').subscribe((res) => {
       if (res.success) { this.toast.success(res.message); this.loadData(); }
     });
+  }
+
+  goToDetail(id: number): void {
+    this.router.navigate([this.basePath(), 'input-bku', 'detail', id]);
   }
 }
