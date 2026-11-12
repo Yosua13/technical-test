@@ -3,7 +3,7 @@ param(
     [int]$DbPort = 5432,
     [string]$DbName = "siapbos_dummy_db",
     [string]$DbUser = "postgres",
-    [string]$DbPassword = "",
+    [string]$DbPassword = "postgres",
     [switch]$SkipBuild,
     [switch]$SkipFrontend,
     [switch]$NoBrowser

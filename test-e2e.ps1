@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BaseUrl = "http://localhost:4200",
     [string]$DbPassword = "postgres",
     [switch]$NoManageServers
@@ -198,6 +198,21 @@ try {
             captchaInput = $cap.captchaCode; captchaToken = $cap.captchaToken; skipCaptchaDemo = $false
         }
         Assert-True ($r.StatusCode -eq 401 -or $r.StatusCode -eq 400) "Seharusnya ditolak (actual: $($r.StatusCode))"
+    }
+
+    Assert-Step "POST /auth-server/oauth/token (Valid Login ADMIN-TDI + MonaS123! + Tahun 2025 + 5 Main Menus)" {
+        $cap = (Invoke-Api "GET" "/auth-server/oauth/captcha").Json.data
+        $r = Invoke-Api "POST" "/auth-server/oauth/token" @{
+            username = "ADMIN-TDI"; password = "MonaS123!"; tahunAnggaran = 2025
+            captchaInput = $cap.captchaCode; captchaToken = $cap.captchaToken; skipCaptchaDemo = $false
+        }
+        Assert-True ($r.StatusCode -eq 200 -and $r.Json.success) "Login ADMIN-TDI gagal: $($r.Raw)"
+        $mods = @($r.Json.data.listAplikasi)
+        Assert-True ($mods.Count -eq 5) "Jumlah Menu Utama untuk ADMIN-TDI harus 5 (actual: $($mods.Count))"
+        $modCodes = $mods | ForEach-Object { $_.kodeAplikasi }
+        foreach ($expectedCode in @("UM", "BOS", "BOP", "ADMN", "HELP")) {
+            Assert-True ($modCodes -contains $expectedCode) "Menu Utama $expectedCode tidak ditemukan"
+        }
     }
 
     $userProfile = $null
@@ -722,6 +737,15 @@ try {
             Assert-True ($res.StatusCode -eq 200) "HTTP $($res.StatusCode)"
             Assert-True ($res.Bytes.Length -gt 1000) "Ukuran Excel terlalu kecil ($($res.Bytes.Length))"
             Assert-True ($res.Bytes[0] -eq 0x50 -and $res.Bytes[1] -eq 0x4B) "Header bukan XLSX PK"
+        }
+    }
+
+    Assert-Step "PostgreSQL Schema Verification (ONLY auth, oauth, siap — NO public/rkas tables)" {
+        $psqlExe = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
+        if (Test-Path $psqlExe) {
+            $env:PGPASSWORD = $DbPassword
+            $schemasRaw = (& $psqlExe -h localhost -p 5432 -U postgres -d siapbos_dummy_db -t -A -c "SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema;") -join ","
+            Assert-True ($schemasRaw -eq "auth,oauth,siap") "Schema aktif harus tepat 'auth,oauth,siap' (actual: $schemasRaw)"
         }
     }
 } finally {
