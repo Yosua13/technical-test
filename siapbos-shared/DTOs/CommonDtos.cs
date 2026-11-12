@@ -121,17 +121,29 @@ public class CreateBkuRequest
     public string KodePeriode { get; set; } = "01";
     public DateTime TanggalTransaksi { get; set; } = DateTime.UtcNow;
     public string NomorBukti { get; set; } = string.Empty;
+    public string NomorArsip { get; set; } = string.Empty;
+    public int? ParentBkuId { get; set; }
     public string KodeTrx { get; set; } = "JJ"; // JO, JJ, P1..P7
     public string JenisPembayaran { get; set; } = "TRANSFER";
+    public string CaraPembayaran { get; set; } = "BANK";
+    public bool IsVirtualAccount { get; set; }
+    public string NamaBidang { get; set; } = string.Empty;
+    public string NamaSnp { get; set; } = string.Empty;
     public string Uraian { get; set; } = string.Empty;
-    public decimal? NominalNonSpj { get; set; } // Untuk JO / Pajak non-SPJ
+    public decimal? NominalNonSpj { get; set; } // Untuk JO / Pajak
+    public string? MasaPajak { get; set; }
+    public int? TahunPajak { get; set; }
+    public decimal? TarifPersen { get; set; }
+    public decimal? DasarPengenaanPajak { get; set; }
     public string NamaRekanan { get; set; } = string.Empty;
     public string KodeBankRekanan { get; set; } = "111";
     public string NamaBankRekanan { get; set; } = "Bank DKI";
     public string NoRekRekanan { get; set; } = string.Empty;
     public string NamaPemilikRekRekanan { get; set; } = string.Empty;
+    public string AlamatRekanan { get; set; } = string.Empty;
     public string NpwpRekanan { get; set; } = string.Empty;
     public string NamaWpRekanan { get; set; } = string.Empty;
+    public string AlamatWpRekanan { get; set; } = string.Empty;
     public string? NoVaAtauPesanan { get; set; }
     public string? FileLampiranName { get; set; }
     public string? FileLampiranPath { get; set; }
@@ -186,7 +198,38 @@ public class BankDkiInquiryRekResponse
     public string NamaBank { get; set; } = "Bank DKI";
     public string NoRekening { get; set; } = string.Empty;
     public string NamaPemilikRekening { get; set; } = string.Empty;
+    public string AlamatPemilik { get; set; } = string.Empty;
     public string StatusRekening { get; set; } = "AKTIF";
+}
+
+public class VaExecuteTransferRequest
+{
+    public int BkuId { get; set; }
+    public string ExecutedBy { get; set; } = string.Empty;
+}
+
+public class VaStepTraceDto
+{
+    public string StepName { get; set; } = string.Empty; // 1. Biller Inquiry | 2. Overbook | 3. Payment
+    public string Endpoint { get; set; } = string.Empty;
+    public string ResponseCode { get; set; } = "00";
+    public string Stan { get; set; } = string.Empty;
+    public string KodeReff { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+}
+
+public class VaTransferResponse
+{
+    public string Bit39 { get; set; } = "00";
+    public string Message { get; set; } = "Pembayaran Virtual Account Bank DKI Berhasil";
+    public string NoJurnalBank { get; set; } = string.Empty;
+    public string Stan { get; set; } = string.Empty;
+    public string KodeReff { get; set; } = string.Empty;
+    public DateTime TanggalTransfer { get; set; }
+    public decimal NominalDitransfer { get; set; }
+    public decimal SisaSaldoSekolah { get; set; }
+    public List<VaStepTraceDto> Steps { get; set; } = [];
 }
 
 public class BankDkiCreateTokenRequest
@@ -269,7 +312,24 @@ public class SipkdNpdResponse
     public string ResponseCode { get; set; } = "00";
     public string ResponseMessage { get; set; } = "NPD BOP Berhasil Disimpan ke SIPKD DKI Jakarta";
     public string NomorSipkd { get; set; } = string.Empty;
+    public int DroppingId { get; set; }
     public DateTime TanggalProses { get; set; }
+}
+
+public class CreateDroppingFromMigrasiRequest
+{
+    public int SekolahId { get; set; }
+    public int MigrasiPaskId { get; set; }
+    public DateTime? TanggalDropping { get; set; }
+    public string Keterangan { get; set; } = string.Empty;
+}
+
+public class CreateNpdFromMigrasiRequest
+{
+    public int SekolahId { get; set; }
+    public int MigrasiPaskId { get; set; }
+    public DateTime? TanggalNpd { get; set; }
+    public string Uraian { get; set; } = string.Empty;
 }
 
 public class BapKasSaveRequest
@@ -306,23 +366,4 @@ public class SetoranStsCreateRequest
     public string JenisSetoran { get; set; } = "SISA_BELANJA";
     public string Uraian { get; set; } = string.Empty;
     public decimal NilaiSetor { get; set; }
-}
-
-public class SaveBatalTransferRequest
-{
-    public int SekolahId { get; set; }
-    public int BkuTransactionId { get; set; }
-    public int TahunAnggaran { get; set; } = 2026;
-    public string SumberDana { get; set; } = "BOS";
-    public string JenisPeriode { get; set; } = "TW";
-    public string KodePeriode { get; set; } = "01";
-    public string NomorBeritaAcara { get; set; } = string.Empty;
-    public DateTime TanggalPembatalan { get; set; } = DateTime.UtcNow;
-    public string NrkPengkoreksi { get; set; } = string.Empty;
-    public string NamaPengkoreksi { get; set; } = string.Empty;
-    public string? FileBeritaAcaraName { get; set; }
-    public string? FileBeritaAcaraPath { get; set; }
-    public string UraianBeritaAcara { get; set; } = string.Empty;
-    public bool PajakTidakDikoreksi { get; set; } = true;
-    public bool SubmitToTu { get; set; } = false;
 }

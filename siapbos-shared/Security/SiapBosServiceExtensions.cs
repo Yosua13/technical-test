@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +35,8 @@ public static class SiapBosServiceExtensions
             {
                 opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
                 opts.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                opts.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+                opts.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
             });
 
         services.AddHttpClient("IntegrationClient", client =>
@@ -66,5 +70,50 @@ public static class SiapBosServiceExtensions
             timestamp = DateTime.UtcNow
         }));
         return app;
+    }
+
+    internal static DateTime ToNormalizedUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+}
+
+internal sealed class UtcDateTimeJsonConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var str = reader.GetString();
+        if (string.IsNullOrWhiteSpace(str)) return default;
+        if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+            return SiapBosServiceExtensions.ToNormalizedUtc(dt);
+        return SiapBosServiceExtensions.ToNormalizedUtc(reader.GetDateTime());
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(SiapBosServiceExtensions.ToNormalizedUtc(value));
+}
+
+internal sealed class NullableUtcDateTimeJsonConverter : JsonConverter<DateTime?>
+{
+    public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        var str = reader.GetString();
+        if (string.IsNullOrWhiteSpace(str)) return null;
+        if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+            return SiapBosServiceExtensions.ToNormalizedUtc(dt);
+        return SiapBosServiceExtensions.ToNormalizedUtc(reader.GetDateTime());
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+    {
+        if (!value.HasValue)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+        writer.WriteStringValue(SiapBosServiceExtensions.ToNormalizedUtc(value.Value));
     }
 }

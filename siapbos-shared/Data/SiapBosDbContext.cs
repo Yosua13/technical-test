@@ -24,6 +24,8 @@ public class SiapBosDbContext : DbContext
     public DbSet<TaxMaster> TaxMasters => Set<TaxMaster>();
 
     public DbSet<RkasItem> RkasItems => Set<RkasItem>();
+    public DbSet<MigrasiPask> MigrasiPasks => Set<MigrasiPask>();
+    public DbSet<MigrasiPaskRinci> MigrasiPaskRincis => Set<MigrasiPaskRinci>();
     public DbSet<DroppingDana> DroppingDanas => Set<DroppingDana>();
     public DbSet<NpdBop> NpdBops => Set<NpdBop>();
 
@@ -34,7 +36,6 @@ public class SiapBosDbContext : DbContext
     public DbSet<BankMutation> BankMutations => Set<BankMutation>();
     public DbSet<BapKasReport> BapKasReports => Set<BapKasReport>();
     public DbSet<SetoranSts> SetoranStses => Set<SetoranSts>();
-    public DbSet<BatalTransferSpj> BatalTransferSpjs => Set<BatalTransferSpj>();
     public DbSet<IntegrationAuditLog> IntegrationAuditLogs => Set<IntegrationAuditLog>();
     public DbSet<HelpdeskTicket> HelpdeskTickets => Set<HelpdeskTicket>();
     public DbSet<OAuthAccessToken> OAuthAccessTokens => Set<OAuthAccessToken>();
@@ -141,12 +142,28 @@ public class SiapBosDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<MigrasiPask>(entity =>
+        {
+            entity.HasOne(m => m.Sekolah)
+                  .WithMany()
+                  .HasForeignKey(m => m.SekolahId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(m => m.Rincians)
+                  .WithOne(r => r.MigrasiPask)
+                  .HasForeignKey(r => r.MigrasiPaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<DroppingDana>(entity =>
         {
             entity.HasOne(d => d.Sekolah)
                   .WithMany()
                   .HasForeignKey(d => d.SekolahId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(d => d.MigrasiPask)
+                  .WithMany()
+                  .HasForeignKey(d => d.MigrasiPaskId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<NpdBop>(entity =>
@@ -155,6 +172,10 @@ public class SiapBosDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(n => n.SekolahId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(n => n.MigrasiPask)
+                  .WithMany()
+                  .HasForeignKey(n => n.MigrasiPaskId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

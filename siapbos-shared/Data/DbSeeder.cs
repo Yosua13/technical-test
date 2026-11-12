@@ -42,7 +42,14 @@ public static class DbSeeder
                     + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'trsiappenggunasekolah') THEN 0 ELSE 1 END)
                     + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'auth' AND table_name = 'users' AND column_name = 'IsLocked') THEN 0 ELSE 1 END)
                     + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'trkoreksi_bku') THEN 1 ELSE 0 END)
-                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'trbatal_transfer_spj') THEN 0 ELSE 1 END);";
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'trbatal_transfer_spj') THEN 1 ELSE 0 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'siap' AND table_name = 'tmbkubos_bop' AND column_name = 'ParentBkuId') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'siap' AND table_name = 'tmbkubos_bop' AND column_name = 'IsVirtualAccount') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'siap' AND table_name = 'tmbkubos_bop' AND column_name = 'StanVa') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'tm_migrasi_pask') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'siap' AND table_name = 'tm_migrasi_pask_rinci') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'siap' AND table_name = 'tijo_dropping' AND column_name = 'StatusDropping') THEN 0 ELSE 1 END)
+                    + (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'siap' AND table_name = 'trnpd_bop' AND column_name = 'MigrasiPaskId') THEN 0 ELSE 1 END);";
             var flag = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             if (flag > 0)
             {
@@ -51,7 +58,9 @@ public static class DbSeeder
             else if (!await db.AppRoles.AnyAsync(r => r.RoleCode == SiapBosRoles.AdminTdi) ||
                      !await db.AppUsers.AnyAsync(u => u.Username == "ADMIN-TDI") ||
                      !await db.AppOtoritasMenus.AnyAsync() ||
-                     !await db.BatalTransferSpjs.AnyAsync() ||
+                     !await db.AppOtoritasMenus.AnyAsync(om => om.Role!.RoleCode == SiapBosRoles.TuNegeri && om.Menu!.Link == "persetujuan-npd") ||
+                     !await db.MigrasiPasks.AnyAsync(p => p.SekolahId == 1 && p.TahunAnggaran == 2026 && p.KodePeriode == "TW4" && p.SumberDana == "BOS") ||
+                     await db.BkuTransactions.AnyAsync(b => b.FileLampiranPath != null && b.FileLampiranPath.Contains("/minio/")) ||
                      await db.BkuTransactions.AnyAsync(b => b.KodeTrx == "JG" || b.KodeTrx == "LL" || b.KodeTrx == "ST") ||
                      await db.AppMenus.AnyAsync(m =>
                          m.Link == "bap-kas-bos" ||
@@ -59,7 +68,10 @@ public static class DbSeeder
                          m.Link == "cetak-setor" ||
                          m.Link == "cetak-setoran" ||
                          m.Link == "setor-sisa-belanja" ||
-                         m.Link == "input-bku-koreksi-tahun-lalu"))
+                         m.Link == "input-bku-koreksi-tahun-lalu" ||
+                         m.Link == "batal-transfer-spj" ||
+                         m.Link == "persetujuan-batal-tf-spj" ||
+                         m.Link == "batal-tutup-bku"))
             {
                 needsRecreate = true;
             }
@@ -78,6 +90,9 @@ public static class DbSeeder
 
         if (await db.Sekolahs.AnyAsync())
         {
+            await EnsureMasterPeriodesCompleteAsync(db);
+            await RemoveObsoleteHelpDeskMenusAsync(db);
+            await EnsureAdminGrantedModuleMenusAsync(db);
             return;
         }
 
@@ -95,7 +110,7 @@ public static class DbSeeder
         var modUm = new AppModule { KodeAplikasi = "UM", Nama = "User Management", Link = "user-management", Deskripsi = "Kelola Pengguna, Otoritas, Aplikasi, Menu, Periode, Master Sekolah & Pajak", Icon = "bi-people-fill", SortOrder = 1, IsActive = true };
         var modBos = new AppModule { KodeAplikasi = "BOS", Nama = "BKU BOSP Negeri", Link = "bos-negeri", Deskripsi = "Penatausahaan Dana BOSP Negeri (Dropping, Input BKU, Approval, Token, CMS, Pajak & Laporan)", Icon = "bi-journal-bookmark-fill", SortOrder = 2, IsActive = true };
         var modBop = new AppModule { KodeAplikasi = "BOP", Nama = "BKU BOP Negeri", Link = "bku-bop", Deskripsi = "Penatausahaan Dana BOP Negeri (Permohonan NPD, Input BKU, Approval, Token, CMS, Pajak & Laporan)", Icon = "bi-bank2", SortOrder = 3, IsActive = true };
-        var modAdmn = new AppModule { KodeAplikasi = "ADMN", Nama = "Administrator", Link = "administrator", Deskripsi = "Batas Pengajuan Belanja, Help Desk Pembayaran BOSP/BOP, VA PLN & Migrasi RKAS", Icon = "bi-sliders2-vertical", SortOrder = 4, IsActive = true };
+        var modAdmn = new AppModule { KodeAplikasi = "ADMN", Nama = "Administrator", Link = "administrator", Deskripsi = "Batas Pengajuan Belanja, Migrasi RKAS & Dropping Dana BOS & BOP", Icon = "bi-sliders2-vertical", SortOrder = 4, IsActive = true };
         var modHelp = new AppModule { KodeAplikasi = "HELP", Nama = "Help Desk", Link = "helpdesk", Deskripsi = "User Manual, Tiket Help Desk & Video Tutorial Penggunaan SIAP", Icon = "bi-headset", SortOrder = 5, IsActive = true };
 
         db.AppModules.AddRange(modUm, modBos, modBop, modAdmn, modHelp);
@@ -113,7 +128,7 @@ public static class DbSeeder
             new() { KodeAplikasi = "UM", Nama = "Pajak",          Link = "pajak",          Icon = "bi-percent",      RequiresSekolah = false, SortOrder = 7 }
         };
 
-        // BKU BOSP Negeri (BOS) - Bersih dari 6 menu tereliminasi Bagian II
+        // BKU BOSP Negeri (BOS) - Tanpa Batal Transfer & Batal Tutup BKU
         var bosDashboard      = new AppMenu { KodeAplikasi = "BOS", Nama = "Dashboard BKU BOSP",                   Link = "dashboard",                  Icon = "bi-speedometer2",        RequiresSekolah = true,  SortOrder = 1 };
         var bosDropSekolah    = new AppMenu { KodeAplikasi = "BOS", Nama = "Dropping Dana BOSP",                   Link = "konfirmasi-drop-dana",       Icon = "bi-box-arrow-in-down",   RequiresSekolah = true,  SortOrder = 2 };
         var bosDropDinas      = new AppMenu { KodeAplikasi = "BOS", Nama = "Konfirmasi Dropping Dana",             Link = "dinas-konfirmasi-drop-dana", Icon = "bi-check2-circle",       RequiresSekolah = false, SortOrder = 3 };
@@ -124,23 +139,20 @@ public static class DbSeeder
         var bosToken          = new AppMenu { KodeAplikasi = "BOS", Nama = "Permohonan Token",                     Link = "permohonan-token",           Icon = "bi-key-fill",            RequiresSekolah = true,  SortOrder = 8 };
         var bosBayar          = new AppMenu { KodeAplikasi = "BOS", Nama = "Pembayaran BKU BOSP",                  Link = "pembayaran-bku",             Icon = "bi-credit-card-2-front", RequiresSekolah = true,  SortOrder = 9 };
         var bosPajak          = new AppMenu { KodeAplikasi = "BOS", Nama = "Pembayaran Pajak BKU BOSP",            Link = "pembayaran-pajak-bku",       Icon = "bi-receipt-cutoff",      RequiresSekolah = true,  SortOrder = 10 };
-        var bosBatalTf        = new AppMenu { KodeAplikasi = "BOS", Nama = "Batal Transfer BKU BOSP",              Link = "batal-transfer-spj",         Icon = "bi-x-octagon",           RequiresSekolah = true,  SortOrder = 11 };
-        var bosApproveBatal   = new AppMenu { KodeAplikasi = "BOS", Nama = "Persetujuan Batal Transfer BKU BOSP",  Link = "persetujuan-batal-tf-spj",   Icon = "bi-shield-check",        RequiresSekolah = true,  SortOrder = 12 };
-        var bosTutup          = new AppMenu { KodeAplikasi = "BOS", Nama = "Tutup BKU",                            Link = "tutup-bku",                  Icon = "bi-lock-fill",           RequiresSekolah = true,  SortOrder = 13 };
-        var bosBatalTutup     = new AppMenu { KodeAplikasi = "BOS", Nama = "Batal Tutup BKU",                      Link = "batal-tutup-bku",            Icon = "bi-unlock-fill",         RequiresSekolah = true,  SortOrder = 14 };
-        var bosMutasi12       = new AppMenu { KodeAplikasi = "BOS", Nama = "Mutasi 12 Transaksi BOSP",             Link = "bos-mutasi-12",              Icon = "bi-clock-history",       RequiresSekolah = true,  SortOrder = 15 };
-        var bosMutasiAll      = new AppMenu { KodeAplikasi = "BOS", Nama = "Mutasi Semua Transaksi BOSP",          Link = "bos-mutasi-semua",           Icon = "bi-bank",                RequiresSekolah = true,  SortOrder = 16 };
-        var bosLaporan        = new AppMenu { KodeAplikasi = "BOS", Nama = "Laporan BKU BOSP",                     Link = "laporan-BKU",                Icon = "bi-file-earmark-pdf",    RequiresSekolah = true,  SortOrder = 17 };
-        var bosMonitoring     = new AppMenu { KodeAplikasi = "BOS", Nama = "Laporan Monitoring Dinas (BOSP)",      Link = "laporan-monitoring-dinas",   Icon = "bi-bar-chart-line",      RequiresSekolah = false, SortOrder = 18 };
+        var bosTutup          = new AppMenu { KodeAplikasi = "BOS", Nama = "Tutup BKU",                            Link = "tutup-bku",                  Icon = "bi-lock-fill",           RequiresSekolah = true,  SortOrder = 11 };
+        var bosMutasi12       = new AppMenu { KodeAplikasi = "BOS", Nama = "Mutasi 12 Transaksi BOSP",             Link = "bos-mutasi-12",              Icon = "bi-clock-history",       RequiresSekolah = true,  SortOrder = 12 };
+        var bosMutasiAll      = new AppMenu { KodeAplikasi = "BOS", Nama = "Mutasi Semua Transaksi BOSP",          Link = "bos-mutasi-semua",           Icon = "bi-bank",                RequiresSekolah = true,  SortOrder = 13 };
+        var bosLaporan        = new AppMenu { KodeAplikasi = "BOS", Nama = "Laporan BKU BOSP",                     Link = "laporan-BKU",                Icon = "bi-file-earmark-pdf",    RequiresSekolah = true,  SortOrder = 14 };
+        var bosMonitoring     = new AppMenu { KodeAplikasi = "BOS", Nama = "Laporan Monitoring Dinas (BOSP)",      Link = "laporan-monitoring-dinas",   Icon = "bi-bar-chart-line",      RequiresSekolah = false, SortOrder = 15 };
 
         var bosMenus = new List<AppMenu>
         {
             bosDashboard, bosDropSekolah, bosDropDinas, bosInput, bosPengajuan, bosApproveTu,
-            bosApprovePa, bosToken, bosBayar, bosPajak, bosBatalTf, bosApproveBatal,
-            bosTutup, bosBatalTutup, bosMutasi12, bosMutasiAll, bosLaporan, bosMonitoring
+            bosApprovePa, bosToken, bosBayar, bosPajak,
+            bosTutup, bosMutasi12, bosMutasiAll, bosLaporan, bosMonitoring
         };
 
-        // BKU BOP Negeri (BOP) - Bersih dari 5 menu tereliminasi Bagian II
+        // BKU BOP Negeri (BOP) - Tanpa Batal Transfer & Batal Tutup BKU
         var bopDashboard      = new AppMenu { KodeAplikasi = "BOP", Nama = "Dashboard BKU BOP",                   Link = "dashboard",                    Icon = "bi-speedometer2",        RequiresSekolah = true,  SortOrder = 1 };
         var bopNpdDraft       = new AppMenu { KodeAplikasi = "BOP", Nama = "Permohonan NPD",                      Link = "konfirmasi-drop-dana-bop",     Icon = "bi-file-earmark-text",   RequiresSekolah = true,  SortOrder = 2 };
         var bopNpdAjukan      = new AppMenu { KodeAplikasi = "BOP", Nama = "Pengajuan Permohonan NPD",            Link = "pengajuan-npd",                Icon = "bi-send-plus",           RequiresSekolah = true,  SortOrder = 3 };
@@ -152,34 +164,27 @@ public static class DbSeeder
         var bopToken          = new AppMenu { KodeAplikasi = "BOP", Nama = "Permohonan Token",                    Link = "permohonan-token",             Icon = "bi-key-fill",            RequiresSekolah = true,  SortOrder = 9 };
         var bopBayar          = new AppMenu { KodeAplikasi = "BOP", Nama = "Pembayaran BKU BOP",                  Link = "pembayaran-bku",               Icon = "bi-credit-card-2-front", RequiresSekolah = true,  SortOrder = 10 };
         var bopPajak          = new AppMenu { KodeAplikasi = "BOP", Nama = "Pembayaran Pajak",                    Link = "pembayaran-pajak-bop",         Icon = "bi-receipt-cutoff",      RequiresSekolah = true,  SortOrder = 11 };
-        var bopBatalTf        = new AppMenu { KodeAplikasi = "BOP", Nama = "Batal Transfer BKU BOP",              Link = "batal-transfer-spj",           Icon = "bi-x-octagon",           RequiresSekolah = true,  SortOrder = 12 };
-        var bopApproveBatal   = new AppMenu { KodeAplikasi = "BOP", Nama = "Persetujuan Batal Transfer BKU BOP",  Link = "persetujuan-batal-tf-spj",     Icon = "bi-shield-check",        RequiresSekolah = true,  SortOrder = 13 };
-        var bopTutup          = new AppMenu { KodeAplikasi = "BOP", Nama = "Tutup BKU",                           Link = "tutup-bku",                    Icon = "bi-lock-fill",           RequiresSekolah = true,  SortOrder = 14 };
-        var bopBatalTutup     = new AppMenu { KodeAplikasi = "BOP", Nama = "Batal Tutup BKU",                     Link = "batal-tutup-bku",              Icon = "bi-unlock-fill",         RequiresSekolah = true,  SortOrder = 15 };
-        var bopMutasi12       = new AppMenu { KodeAplikasi = "BOP", Nama = "Mutasi 12 Transaksi",                 Link = "mutasi-transfer-12-transaksi", Icon = "bi-clock-history",       RequiresSekolah = true,  SortOrder = 16 };
-        var bopMutasiAll      = new AppMenu { KodeAplikasi = "BOP", Nama = "Mutasi Semua Transaksi BOP",          Link = "bop-mutasi-semua",             Icon = "bi-bank",                RequiresSekolah = true,  SortOrder = 17 };
-        var bopLaporan        = new AppMenu { KodeAplikasi = "BOP", Nama = "Laporan BKU BOP",                     Link = "laporan-BKU",                  Icon = "bi-file-earmark-pdf",    RequiresSekolah = true,  SortOrder = 18 };
-        var bopMonitoring     = new AppMenu { KodeAplikasi = "BOP", Nama = "Laporan Monitoring Sudin (BOP)",      Link = "laporan-monitoring-sudin",     Icon = "bi-bar-chart-line",      RequiresSekolah = false, SortOrder = 19 };
+        var bopTutup          = new AppMenu { KodeAplikasi = "BOP", Nama = "Tutup BKU",                           Link = "tutup-bku",                    Icon = "bi-lock-fill",           RequiresSekolah = true,  SortOrder = 12 };
+        var bopMutasi12       = new AppMenu { KodeAplikasi = "BOP", Nama = "Mutasi 12 Transaksi",                 Link = "mutasi-transfer-12-transaksi", Icon = "bi-clock-history",       RequiresSekolah = true,  SortOrder = 13 };
+        var bopMutasiAll      = new AppMenu { KodeAplikasi = "BOP", Nama = "Mutasi Semua Transaksi BOP",          Link = "bop-mutasi-semua",             Icon = "bi-bank",                RequiresSekolah = true,  SortOrder = 14 };
+        var bopLaporan        = new AppMenu { KodeAplikasi = "BOP", Nama = "Laporan BKU BOP",                     Link = "laporan-BKU",                  Icon = "bi-file-earmark-pdf",    RequiresSekolah = true,  SortOrder = 15 };
+        var bopMonitoring     = new AppMenu { KodeAplikasi = "BOP", Nama = "Laporan Monitoring Sudin (BOP)",      Link = "laporan-monitoring-sudin",     Icon = "bi-bar-chart-line",      RequiresSekolah = false, SortOrder = 16 };
 
         var bopMenus = new List<AppMenu>
         {
             bopDashboard, bopNpdDraft, bopNpdAjukan, bopNpdApprove, bopInput, bopPengajuan,
-            bopApproveTu, bopApprovePa, bopToken, bopBayar, bopPajak, bopBatalTf,
-            bopApproveBatal, bopTutup, bopBatalTutup, bopMutasi12, bopMutasiAll, bopLaporan, bopMonitoring
+            bopApproveTu, bopApprovePa, bopToken, bopBayar, bopPajak,
+            bopTutup, bopMutasi12, bopMutasiAll, bopLaporan, bopMonitoring
         };
 
         // Administrator (ADMN)
         var admnBatas    = new AppMenu { KodeAplikasi = "ADMN", Nama = "Batas Pengajuan Belanja",         Link = "batas-pengajuan-belanja-list-opd", Icon = "bi-calendar-range",         RequiresSekolah = false, SortOrder = 1 };
-        var admnHelpBos  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Help Desk Pembayaran BKU BOSP",   Link = "help-pembayaran-bos",              Icon = "bi-life-preserver",         RequiresSekolah = true,  SortOrder = 2 };
-        var admnHelpBop  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Help Desk Pembayaran BKU BOP",    Link = "help-pembayaran-bop",              Icon = "bi-headset",                RequiresSekolah = true,  SortOrder = 3 };
-        var admnHelpPln  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Help Desk Virtual Account PLN",   Link = "help-va-pln",                      Icon = "bi-lightning-charge",       RequiresSekolah = true,  SortOrder = 4 };
-        var admnMigrasi  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Migrasi RKAS",                    Link = "konversi-data",                    Icon = "bi-file-earmark-spreadsheet", RequiresSekolah = true, SortOrder = 5 };
-        var admnDrop     = new AppMenu { KodeAplikasi = "ADMN", Nama = "Dropping Dana BOS & BOP",         Link = "dropping-dana",                    Icon = "bi-send-check",             RequiresSekolah = false, SortOrder = 6 };
-        var admnKonfRek  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Konfirmasi Saldo Rekening",       Link = "konfirmasi-rekening",              Icon = "bi-bank2",                  RequiresSekolah = true,  SortOrder = 7 };
+        var admnMigrasi  = new AppMenu { KodeAplikasi = "ADMN", Nama = "Migrasi RKAS",                    Link = "konversi-data",                    Icon = "bi-file-earmark-spreadsheet", RequiresSekolah = true, SortOrder = 2 };
+        var admnDrop     = new AppMenu { KodeAplikasi = "ADMN", Nama = "Dropping Dana BOS & BOP",         Link = "dropping-dana",                    Icon = "bi-send-check",             RequiresSekolah = false, SortOrder = 3 };
 
         var admnMenus = new List<AppMenu>
         {
-            admnBatas, admnHelpBos, admnHelpBop, admnHelpPln, admnMigrasi, admnDrop, admnKonfRek
+            admnBatas, admnMigrasi, admnDrop
         };
 
         // Help Desk (HELP) - Terbuka untuk seluruh role sesuai Bagian I No. 7
@@ -216,35 +221,33 @@ public static class DbSeeder
         GrantModuleMenus(roleAdminTdi, modAdmn, admnMenus);
         GrantModuleMenus(roleAdminTdi, modHelp, helpMenus);
 
-        // 4.2 Bendahara Sekolah / Pemegang Kas (PK-NEGERI): 12 BOSP + 13 BOP + Help Desk
+        // 4.2 Bendahara Sekolah / Pemegang Kas (PK-NEGERI): 10 BOSP + 11 BOP + Help Desk
         GrantModuleMenus(rolePk, modBos, [
             bosDashboard, bosDropSekolah, bosInput, bosPengajuan, bosBayar, bosPajak,
-            bosBatalTf, bosTutup, bosBatalTutup, bosMutasi12, bosMutasiAll, bosLaporan
+            bosTutup, bosMutasi12, bosMutasiAll, bosLaporan
         ]);
         GrantModuleMenus(rolePk, modBop, [
             bopDashboard, bopNpdDraft, bopNpdAjukan, bopInput, bopPengajuan, bopBayar,
-            bopPajak, bopBatalTf, bopTutup, bopBatalTutup, bopMutasi12, bopMutasiAll, bopLaporan
+            bopPajak, bopTutup, bopMutasi12, bopMutasiAll, bopLaporan
         ]);
         GrantModuleMenus(rolePk, modHelp, helpMenus);
 
-        // 4.3 Kepala Tata Usaha (TU-NEGERI): Persetujuan Pembayaran TU + Persetujuan Batal Transfer + Help Desk
-        GrantModuleMenus(roleTu, modBos, [bosApproveTu, bosApproveBatal]);
-        GrantModuleMenus(roleTu, modBop, [bopApproveTu, bopApproveBatal]);
+        // 4.3 Kepala Tata Usaha (TU-NEGERI): Persetujuan TU (Dropping BOSP, NPD BOP & BKU) + Help Desk
+        GrantModuleMenus(roleTu, modBos, [bosDropSekolah, bosApproveTu]);
+        GrantModuleMenus(roleTu, modBop, [bopNpdDraft, bopNpdApprove, bopApproveTu]);
         GrantModuleMenus(roleTu, modHelp, helpMenus);
 
-        // 4.4 Pengguna Anggaran / Kepala Sekolah (PA-NEGERI): Token, Persetujuan PA, NPD, Batal TF, Mutasi & Laporan + Help Desk
-        GrantModuleMenus(rolePa, modBos, [bosToken, bosApprovePa, bosApproveBatal, bosMutasi12, bosMutasiAll, bosLaporan]);
-        GrantModuleMenus(rolePa, modBop, [bopToken, bopNpdApprove, bopApprovePa, bopApproveBatal, bopMutasi12, bopMutasiAll, bopLaporan]);
+        // 4.4 Pengguna Anggaran / Kepala Sekolah (PA-NEGERI): Token, Persetujuan PA (Dropping, NPD & BKU), Mutasi & Laporan + Help Desk
+        GrantModuleMenus(rolePa, modBos, [bosDropSekolah, bosToken, bosApprovePa, bosMutasi12, bosMutasiAll, bosLaporan]);
+        GrantModuleMenus(rolePa, modBop, [bopToken, bopNpdApprove, bopApprovePa, bopMutasi12, bopMutasiAll, bopLaporan]);
         GrantModuleMenus(rolePa, modHelp, helpMenus);
 
-        // 4.5 Suku Dinas Pendidikan Wilayah (SUDIN): BOP/APBD + Help Desk Pembayaran BKU BOP & VA PLN + Help Desk
-        GrantModuleMenus(roleSudin, modBop, [bopNpdApprove, bopApproveBatal, bopMonitoring, bopLaporan, bopMutasi12, bopMutasiAll]);
-        GrantModuleMenus(roleSudin, modAdmn, [admnHelpBop, admnHelpPln]);
+        // 4.5 Suku Dinas Pendidikan Wilayah (SUDIN): BOP/APBD + Help Desk
+        GrantModuleMenus(roleSudin, modBop, [bopNpdApprove, bopMonitoring, bopLaporan, bopMutasi12, bopMutasiAll]);
         GrantModuleMenus(roleSudin, modHelp, helpMenus);
 
-        // 4.6 Dinas Pendidikan Provinsi DKI Jakarta (ADMIN-DINAS): BOSP/APBN + Help Desk Pembayaran BKU BOSP & VA PLN + Help Desk
-        GrantModuleMenus(roleDinas, modBos, [bosDropDinas, bosApproveBatal, bosMonitoring, bosLaporan, bosMutasi12, bosMutasiAll]);
-        GrantModuleMenus(roleDinas, modAdmn, [admnHelpBos, admnHelpPln]);
+        // 4.6 Dinas Pendidikan Provinsi DKI Jakarta (ADMIN-DINAS): BOSP/APBN + Help Desk
+        GrantModuleMenus(roleDinas, modBos, [bosDropDinas, bosMonitoring, bosLaporan, bosMutasi12, bosMutasiAll]);
         GrantModuleMenus(roleDinas, modHelp, helpMenus);
 
         // 5. Master Sekolah
@@ -260,11 +263,11 @@ public static class DbSeeder
             NoRekBos = "1110001234567",
             NamaRekBos = "BOS SMAN 1 JAKARTA",
             SaldoAwalBos = 0m,
-            SaldoBos = 450000000m,
+            SaldoBos = 0m,
             NoRekBop = "1110007654321",
             NamaRekBop = "BOP SMAN 1 JAKARTA",
             SaldoAwalBop = 0m,
-            SaldoBop = 320000000m,
+            SaldoBop = 0m,
             NpwpSekolah = "00.123.456.7-011.000",
             NamaKepalaSekolah = "Drs. Hendra Wijaya, M.Pd",
             NipKepalaSekolah = "197205121998021001",
@@ -291,11 +294,11 @@ public static class DbSeeder
             NoRekBos = "1110002223334",
             NamaRekBos = "BOS SMPN 115 JAKARTA",
             SaldoAwalBos = 0m,
-            SaldoBos = 275000000m,
+            SaldoBos = 0m,
             NoRekBop = "1110005556667",
             NamaRekBop = "BOP SMPN 115 JAKARTA",
             SaldoAwalBop = 0m,
-            SaldoBop = 190000000m,
+            SaldoBop = 0m,
             NpwpSekolah = "00.987.654.3-015.000",
             NamaKepalaSekolah = "Dra. Lestari Kusuma, M.M.",
             NipKepalaSekolah = "197409101999032002",
@@ -322,11 +325,11 @@ public static class DbSeeder
             NoRekBos = "1110008889991",
             NamaRekBos = "BOS SDN MENTENG 01 PAGI",
             SaldoAwalBos = 0m,
-            SaldoBos = 180000000m,
+            SaldoBos = 0m,
             NoRekBop = "1110009998882",
             NamaRekBop = "BOP SDN MENTENG 01 PAGI",
             SaldoAwalBop = 0m,
-            SaldoBop = 140000000m,
+            SaldoBop = 0m,
             NpwpSekolah = "00.456.789.1-071.000",
             NamaKepalaSekolah = "Sri Wahyuni, S.Pd., M.Pd.",
             NipKepalaSekolah = "197602222000122001",
@@ -398,16 +401,7 @@ public static class DbSeeder
         );
 
         // 7. Master Periode (2025 & 2026) & Tax & BAS (Schema: siap)
-        db.MasterPeriodes.AddRange(
-            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOS", KodePeriode = "01", NamaPeriode = "Tahap 1 (Januari - Juni 2025)", BulanMulai = 1, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2025, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOS", KodePeriode = "02", NamaPeriode = "Tahap 2 (Juli - Desember 2025)", BulanMulai = 7, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(2025, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOP", KodePeriode = "TW1", NamaPeriode = "Triwulan I (Januari - Maret 2025)", BulanMulai = 1, BulanSelesai = 3, BatasPengajuanBelanja = new DateTime(2025, 3, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2025, SumberDana = "BOP", KodePeriode = "TW2", NamaPeriode = "Triwulan II (April - Juni 2025)", BulanMulai = 4, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2025, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", NamaPeriode = "Tahap 1 (Januari - Juni 2026)", BulanMulai = 1, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2026, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "02", NamaPeriode = "Tahap 2 (Juli - Desember 2026)", BulanMulai = 7, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(2026, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", NamaPeriode = "Triwulan I (Januari - Maret 2026)", BulanMulai = 1, BulanSelesai = 3, BatasPengajuanBelanja = new DateTime(2026, 3, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true },
-            new MasterPeriode { TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW2", NamaPeriode = "Triwulan II (April - Juni 2026)", BulanMulai = 4, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(2026, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true }
-        );
+        db.MasterPeriodes.AddRange(BuildDefaultMasterPeriodes());
 
         db.TaxMasters.AddRange(
             new TaxMaster { KodeTrxPajak = "P1", NamaPajak = "PPh Pasal 21 (Honorarium/Jasa Pribadi)", KodeMap = "411121", KodeJenisSetoran = "100", TarifPersen = 5.00m, Keterangan = "Pemotongan PPh 21 atas honorarium narasumber/tenaga ahli" },
@@ -435,7 +429,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.01.01.0024", NamaAkun = "Belanja Alat/Bahan untuk Kegiatan Kantor-Alat Tulis Kantor",
             KodeKomponen = "KMP-ATK-001", NamaKomponen = "Paket Kertas HVS A4, Tinta Printer & ATK Kantor",
             Spesifikasi = "HVS 80gr + Tinta Original + Map Sekolah", Satuan = "Paket", Volume = 10, HargaSatuan = 2500000m,
-            TotalPagu = 25000000m, TotalRealisasi = 16650000m
+            TotalPagu = 25000000m, TotalRealisasi = 0m
         };
         var rkasAc = new RkasItem
         {
@@ -486,7 +480,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.02.01.0003", NamaAkun = "Honorarium Narasumber / Tenaga Ahli Kegiatan Sekolah",
             KodeKomponen = "BOP-HON-001", NamaKomponen = "Honorarium Narasumber Workshop Kurikulum",
             Spesifikasi = "Tarif Narasumber Provinsi DKI", Satuan = "OJ", Volume = 40, HargaSatuan = 900000m,
-            TotalPagu = 36000000m, TotalRealisasi = 9000000m
+            TotalPagu = 36000000m, TotalRealisasi = 0m
         };
         var rkasBopPln = new RkasItem
         {
@@ -507,7 +501,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.01.01.0024", NamaAkun = "Belanja Alat/Bahan untuk Kegiatan Kantor-Alat Tulis Kantor",
             KodeKomponen = "SMP-ATK-001", NamaKomponen = "ATK Ujian Tengah Semester",
             Spesifikasi = "Kertas HVS & Amplop Soal", Satuan = "Paket", Volume = 10, HargaSatuan = 1500000m,
-            TotalPagu = 15000000m, TotalRealisasi = 8500000m
+            TotalPagu = 15000000m, TotalRealisasi = 0m
         };
         var rkasSmpPln = new RkasItem
         {
@@ -517,7 +511,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.02.01.0061", NamaAkun = "Belanja Tagihan Listrik (PLN)",
             KodeKomponen = "SMP-PLN-002", NamaKomponen = "Tagihan Listrik & Internet SMPN 115",
             Spesifikasi = "Daya 66 kVA", Satuan = "Bulan", Volume = 6, HargaSatuan = 5500000m,
-            TotalPagu = 33000000m, TotalRealisasi = 5500000m
+            TotalPagu = 33000000m, TotalRealisasi = 0m
         };
         var rkasSmpBopHonor = new RkasItem
         {
@@ -527,7 +521,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.02.01.0003", NamaAkun = "Honorarium Narasumber / Tenaga Ahli Kegiatan Sekolah",
             KodeKomponen = "SMP-BOP-001", NamaKomponen = "Honorarium Narasumber Pelatihan Literasi",
             Spesifikasi = "Tarif DKI", Satuan = "OJ", Volume = 20, HargaSatuan = 800000m,
-            TotalPagu = 16000000m, TotalRealisasi = 6400000m
+            TotalPagu = 16000000m, TotalRealisasi = 0m
         };
         var rkasSdnBuku = new RkasItem
         {
@@ -537,7 +531,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.01.01.0024", NamaAkun = "Belanja Buku Bacaan & Referensi Perpustakaan",
             KodeKomponen = "SDN-BUKU-001", NamaKomponen = "Paket Buku Pengayaan & Modul Kurikulum Merdeka",
             Spesifikasi = "Paket SD Lengkap", Satuan = "Paket", Volume = 20, HargaSatuan = 1200000m,
-            TotalPagu = 24000000m, TotalRealisasi = 6000000m
+            TotalPagu = 24000000m, TotalRealisasi = 0m
         };
         var rkasSdnKonsumsi = new RkasItem
         {
@@ -557,7 +551,7 @@ public static class DbSeeder
             KodeAkun = "5.1.02.01.01.0024", NamaAkun = "Belanja Alat Kebersihan dan Bahan Pembersih",
             KodeKomponen = "SDN-BOP-001", NamaKomponen = "Paket Sanitasi & Kebersihan SDN Menteng 01",
             Spesifikasi = "Disinfektan + Alat Kebersihan", Satuan = "Paket", Volume = 12, HargaSatuan = 1000000m,
-            TotalPagu = 12000000m, TotalRealisasi = 5000000m
+            TotalPagu = 12000000m, TotalRealisasi = 0m
         };
 
         db.RkasItems.AddRange(
@@ -566,871 +560,154 @@ public static class DbSeeder
             rkasSdnBuku, rkasSdnKonsumsi, rkasSdnBopKebersihan);
         await db.SaveChangesAsync();
 
-        // 7. Seed BKU Transactions for SMAN 1 Jakarta (BOS & BOP)
-        // BKU 1 (JO): Dropping BOS Tahap 1 = Rp 466.650.000 masuk, lalu dibelanjakan BKU 2 Rp 16.650.000 => Saldo BOS saat ini Rp 450.000.000!
-        var bkuJoBos = new BkuTransaction
+        // 7. BKU/SPJ, Pajak BKU dibiarkan kosong agar user dapat simulasi bersih dari awal
+
+        // 8. Master Hasil Migrasi ADM (PASK Dropping Dana BOS & NPD BOP per Sekolah & Triwulan)
+        MigrasiPask BuildPask(
+            Sekolah sk, int tahun, string sumberDana, string kodePeriode, string namaPeriode,
+            string kodeSubgiat, string namaSubgiat, string namaPask, decimal totalDana,
+            (string kodeKeg, string namaKeg, string kodeRek, string namaRek, decimal anggaran, decimal akb, decimal sblm, decimal npd)[] lines)
         {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 1,
-            NomorBku = "BKU-BOS-2026-0001", NomorBukti = "SP2D/KEMENDIKBUD/BOS/2026/0112",
-            TanggalTransaksi = new DateTime(2026, 1, 18, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Penerimaan Penyaluran (Dropping) Dana BOSP Tahap 1 Tahun 2026",
-            NilaiBrutoMasuk = 466650000m, NilaiBrutoKeluar = 0m, TotalPotonganPajak = 0m, NilaiNettoTransfer = 0m,
-            NamaRekanan = "KAS NEGARA / KPPN JAKARTA II", NamaBankRekanan = "Bank DKI", NoRekRekanan = sman1.NoRekBos,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-DKI-20260118001", TanggalTransferBank = new DateTime(2026, 1, 18, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-DROPPING", CreatedAt = new DateTime(2026, 1, 18, 9, 0, 0, DateTimeKind.Utc)
-        };
-        db.BkuTransactions.Add(bkuJoBos);
+            return new MigrasiPask
+            {
+                BatchKode = $"MIG-{tahun}-INIT",
+                SekolahId = sk.Id,
+                TahunAnggaran = tahun,
+                SumberDana = sumberDana,
+                KodePeriode = kodePeriode,
+                NamaPeriode = namaPeriode,
+                KodeSubgiat = kodeSubgiat,
+                NamaSubgiat = namaSubgiat,
+                NamaPask = namaPask,
+                Program = "PROGRAM PENGELOLAAN PENDIDIKAN",
+                NomorDpaSkpd = $"001/DPA/{tahun}",
+                SumberDanaLabel = sumberDana == "BOS" ? "BOSP-REGULER" : $"BOP-{sk.Jenjang}N ALOKASI DASAR",
+                TotalDana = totalDana,
+                ImportedBy = "ADMIN-TDI",
+                ImportedAt = new DateTime(tahun, 1, 10, 8, 0, 0, DateTimeKind.Utc),
+                FileName = $"Migrasi_PASK_{tahun}_Awal.xlsx",
+                Rincians = lines.Select(l => new MigrasiPaskRinci
+                {
+                    KodeKegiatan = l.kodeKeg,
+                    NamaKegiatan = l.namaKeg,
+                    KodeRekening = l.kodeRek,
+                    NamaRekening = l.namaRek,
+                    Anggaran = l.anggaran,
+                    AkbPerPeriode = l.akb,
+                    NilaiSebelum = l.sblm,
+                    NilaiNpd = l.npd
+                }).ToList()
+            };
+        }
+
+        var paskSmanBosTw1 = BuildPask(sman1, 2026, "BOS", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0016", "Pengelolaan Pendidikan Sekolah Menengah Atas",
+            "Dana Bantuan Operasional Satuan Pendidikan (BOSP) SMAN 1 Jakarta TW 1", 466650000m,
+            [
+                ("02.02", "02.02. Pengembangan Perpustakaan dan Pojok Baca", "5.1.02.01.01.0024", "Belanja Alat/Bahan untuk Kegiatan Kantor-Alat Tulis Kantor", 320000000m, 160000000m, 0m, 160000000m),
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.1.02.02.01.0061", "Belanja Jasa Paket/Pengiriman & Listrik Internet", 613300000m, 306650000m, 0m, 306650000m)
+            ]);
+        var paskSmanBosTw2 = BuildPask(sman1, 2026, "BOS", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0016", "Pengelolaan Pendidikan Sekolah Menengah Atas",
+            "Dana Bantuan Operasional Satuan Pendidikan (BOSP) SMAN 1 Jakarta TW 2", 300000000m,
+            [
+                ("03.03", "03.03. Pelaksanaan Kegiatan Pembelajaran dan Ekstrakurikuler", "5.1.02.01.01.0052", "Belanja Makanan dan Minuman Rapat/Kegiatan", 400000000m, 150000000m, 150000000m, 150000000m),
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.1.02.02.01.0061", "Belanja Langganan Daya dan Jasa", 400000000m, 150000000m, 150000000m, 150000000m)
+            ]);
+        var paskSmanBosTw3 = BuildPask(sman1, 2026, "BOS", "TW3", "Triwulan ke-03",
+            "1.01.02.2.01.0016", "Pengelolaan Pendidikan Sekolah Menengah Atas",
+            "Dana Bantuan Operasional Satuan Pendidikan (BOSP) SMAN 1 Jakarta TW 3", 250000000m,
+            [
+                ("05.08", "05.08. Pemeliharaan Sarana dan Prasarana Sekolah", "5.1.02.03.02.0117", "Belanja Pemeliharaan Alat Pendingin & Ruang Kelas", 350000000m, 125000000m, 125000000m, 125000000m),
+                ("06.07", "06.07. Pembiayaan langganan daya dan jasa", "5.1.02.02.01.0061", "Belanja Tagihan Listrik, Air, dan Internet", 350000000m, 125000000m, 125000000m, 125000000m)
+            ]);
+
+        var paskSmanBopTw1 = BuildPask(sman1, 2026, "BOP", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0047", "Penyediaan Biaya Operasional Pendidikan SMA Negeri",
+            "Penyediaan Biaya Operasional Pendidikan SMA Negeri (BOP-SMAN) Alokasi Dasar TW 1", 329000000m,
+            [
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.1.02.01.01.0012", "Belanja Bahan-Bahan Lainnya", 600000000m, 150000000m, 0m, 150000000m),
+                ("06.07", "06.07. Pembiayaan langganan daya dan jasa", "5.1.02.02.01.0061", "Belanja Tagihan Listrik & Air", 716000000m, 179000000m, 0m, 179000000m)
+            ]);
+        var paskSmanBopTw2 = BuildPask(sman1, 2026, "BOP", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0047", "Penyediaan Biaya Operasional Pendidikan SMA Negeri",
+            "Penyediaan Biaya Operasional Pendidikan SMA Negeri (BOP-SMAN) Alokasi Dasar TW 2", 285000000m,
+            [
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.2.02.05.02.0004", "Belanja Modal Alat Pendingin", 450000000m, 135000000m, 150000000m, 135000000m),
+                ("06.07", "06.07. Pembiayaan langganan daya dan jasa", "5.1.02.01.01.0012", "Belanja Bahan-Bahan Lainnya", 600000000m, 150000000m, 150000000m, 150000000m)
+            ]);
+        var paskSmanBopTw3 = BuildPask(sman1, 2026, "BOP", "TW3", "Triwulan ke-03",
+            "1.01.02.2.01.0047", "Penyediaan Biaya Operasional Pendidikan SMA Negeri",
+            "Penyediaan Biaya Operasional Pendidikan SMA Negeri (BOP-SMAN) Alokasi Dasar TW 3", 175000000m,
+            [
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.1.02.01.01.0012", "Belanja Bahan-Bahan Lainnya", 350000000m, 95000000m, 95000000m, 95000000m),
+                ("06.07", "06.07. Pembiayaan langganan daya dan jasa", "5.1.02.02.01.0061", "Belanja Tagihan Listrik, Air, dan Internet", 320000000m, 80000000m, 80000000m, 80000000m)
+            ]);
+        var paskSmanBosTw4 = BuildPask(sman1, 2026, "BOS", "TW4", "Triwulan ke-04",
+            "1.01.02.2.01.0016", "Pengelolaan Pendidikan Sekolah Menengah Atas",
+            "Dana Bantuan Operasional Satuan Pendidikan (BOSP) SMAN 1 Jakarta TW 4", 150000000m,
+            [
+                ("02.02", "02.02. Pengembangan Perpustakaan dan Pojok Baca", "5.1.02.01.01.0024", "Belanja Alat Tulis Kantor & Bahan Pustaka", 180000000m, 60000000m, 35000000m, 60000000m),
+                ("05.08", "05.08. Pemeliharaan Sarana dan Prasarana Sekolah", "5.1.02.03.02.0117", "Belanja Pemeliharaan Ruang Belajar", 250000000m, 90000000m, 55000000m, 90000000m)
+            ]);
+        var paskSmanBopTw4 = BuildPask(sman1, 2026, "BOP", "TW4", "Triwulan ke-04",
+            "1.01.02.2.01.0047", "Penyediaan Biaya Operasional Pendidikan SMA Negeri",
+            "Penyediaan Biaya Operasional Pendidikan SMA Negeri (BOP-SMAN) Alokasi Dasar TW 4", 110000000m,
+            [
+                ("06.05", "06.05. Pelaksanaan administrasi kegiatan sekolah", "5.2.02.05.02.0004", "Belanja Modal Alat Pendingin", 120000000m, 45000000m, 30000000m, 45000000m),
+                ("06.07", "06.07. Pembiayaan langganan daya dan jasa", "5.1.02.01.01.0012", "Belanja Bahan-Bahan Lainnya", 240000000m, 65000000m, 40000000m, 65000000m)
+            ]);
+
+        var paskSmpBosTw1 = BuildPask(smpn115, 2026, "BOS", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0014", "Pengelolaan Pendidikan Sekolah Menengah Pertama",
+            "Dana BOSP SMPN 115 Jakarta TW 1", 289000000m,
+            [("02.02", "02.02. Pengembangan Perpustakaan", "5.1.02.01.01.0024", "Belanja ATK & Buku", 580000000m, 289000000m, 0m, 289000000m)]);
+        var paskSmpBosTw2 = BuildPask(smpn115, 2026, "BOS", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0014", "Pengelolaan Pendidikan Sekolah Menengah Pertama",
+            "Dana BOSP SMPN 115 Jakarta TW 2", 185000000m,
+            [("03.03", "03.03. Pembelajaran & Ekstrakurikuler", "5.1.02.01.01.0052", "Belanja Bahan Kegiatan", 370000000m, 185000000m, 185000000m, 185000000m)]);
+        var paskSmpBopTw1 = BuildPask(smpn115, 2026, "BOP", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0046", "Penyediaan Biaya Operasional Pendidikan SMP Negeri",
+            "Penyediaan BOP SMP Negeri (BOP-SMPN) Alokasi Dasar TW 1", 196400000m,
+            [("06.05", "06.05. Administrasi Kegiatan Sekolah", "5.1.02.01.01.0012", "Belanja Bahan Operasional", 392800000m, 196400000m, 0m, 196400000m)]);
+        var paskSmpBopTw2 = BuildPask(smpn115, 2026, "BOP", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0046", "Penyediaan Biaya Operasional Pendidikan SMP Negeri",
+            "Penyediaan BOP SMP Negeri (BOP-SMPN) Alokasi Dasar TW 2", 165000000m,
+            [("06.07", "06.07. Langganan Daya & Jasa", "5.1.02.02.01.0061", "Belanja Daya & Jasa", 330000000m, 165000000m, 165000000m, 165000000m)]);
+        var paskSmpBosTw3 = BuildPask(smpn115, 2026, "BOS", "TW3", "Triwulan ke-03",
+            "1.01.02.2.01.0014", "Pengelolaan Pendidikan Sekolah Menengah Pertama",
+            "Dana BOSP SMPN 115 Jakarta TW 3", 95000000m,
+            [("03.03", "03.03. Pembelajaran & Ekstrakurikuler", "5.1.02.01.01.0052", "Belanja Bahan Pembelajaran Siswa", 190000000m, 95000000m, 45000000m, 95000000m)]);
+        var paskSmpBopTw3 = BuildPask(smpn115, 2026, "BOP", "TW3", "Triwulan ke-03",
+            "1.01.02.2.01.0046", "Penyediaan Biaya Operasional Pendidikan SMP Negeri",
+            "Penyediaan BOP SMP Negeri (BOP-SMPN) Alokasi Dasar TW 3", 80000000m,
+            [("06.05", "06.05. Administrasi Kegiatan Sekolah", "5.1.02.01.01.0012", "Belanja Bahan Operasional Sekolah", 160000000m, 80000000m, 40000000m, 80000000m)]);
+        var paskSdnBosTw1 = BuildPask(sdnMenteng01, 2026, "BOS", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0012", "Pengelolaan Pendidikan Sekolah Dasar",
+            "Dana BOSP SDN Menteng 01 Pagi TW 1", 186000000m,
+            [("02.02", "02.02. Pengembangan Perpustakaan", "5.1.02.01.01.0024", "Belanja ATK & Buku", 372000000m, 186000000m, 0m, 186000000m)]);
+        var paskSdnBopTw1 = BuildPask(sdnMenteng01, 2026, "BOP", "TW1", "Triwulan ke-01",
+            "1.01.02.2.01.0045", "Penyediaan Biaya Operasional Pendidikan SD Negeri",
+            "Penyediaan BOP SD Negeri (BOP-SDN) Alokasi Dasar TW 1", 145000000m,
+            [("06.05", "06.05. Administrasi Kegiatan Sekolah", "5.1.02.01.01.0012", "Belanja Bahan Operasional", 290000000m, 145000000m, 0m, 145000000m)]);
+        var paskSdnBosTw2 = BuildPask(sdnMenteng01, 2026, "BOS", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0012", "Pengelolaan Pendidikan Sekolah Dasar",
+            "Dana BOSP SDN Menteng 01 Pagi TW 2", 75000000m,
+            [("02.02", "02.02. Pengembangan Perpustakaan", "5.1.02.01.01.0024", "Belanja Bahan Pustaka & ATK", 150000000m, 75000000m, 35000000m, 75000000m)]);
+        var paskSdnBopTw2 = BuildPask(sdnMenteng01, 2026, "BOP", "TW2", "Triwulan ke-02",
+            "1.01.02.2.01.0045", "Penyediaan Biaya Operasional Pendidikan SD Negeri",
+            "Penyediaan BOP SD Negeri (BOP-SDN) Alokasi Dasar TW 2", 70000000m,
+            [("06.07", "06.07. Pembiayaan Langganan Daya & Jasa", "5.1.02.02.01.0061", "Belanja Tagihan Listrik, Air & Internet", 140000000m, 70000000m, 30000000m, 70000000m)]);
+
+        db.MigrasiPasks.AddRange(
+            paskSmanBosTw1, paskSmanBosTw2, paskSmanBosTw3, paskSmanBosTw4,
+            paskSmanBopTw1, paskSmanBopTw2, paskSmanBopTw3, paskSmanBopTw4,
+            paskSmpBosTw1, paskSmpBosTw2, paskSmpBosTw3,
+            paskSmpBopTw1, paskSmpBopTw2, paskSmpBopTw3,
+            paskSdnBosTw1, paskSdnBosTw2, paskSdnBopTw1, paskSdnBopTw2);
         await db.SaveChangesAsync();
 
-        // BKU 2 (JJ - Lunas Transfer CMS & Lunas Pajak NTPN)
-        var bkuLunas = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 2,
-            NomorBku = "BKU-BOS-2026-0002", NomorBukti = "INV/EORD/2026/00451",
-            TanggalTransaksi = new DateTime(2026, 2, 10, 10, 30, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.EOrder,
-            Uraian = "Pengadaan Kertas HVS A4, Tinta Printer & ATK Kantor Semester Genap via e-Order",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 16650000m, TotalPotonganPajak = 1875000m, NilaiNettoTransfer = 14775000m,
-            NamaRekanan = "CV. GRAHA PUSTAKA NUSANTARA", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110099887766", NamaPemilikRekRekanan = "CV. GRAHA PUSTAKA NUSANTARA",
-            NpwpRekanan = "01.345.678.9-022.000", NamaWpRekanan = "CV. GRAHA PUSTAKA NUSANTARA",
-            NoVaAtauPesanan = "EORD-DKI-2026-00451",
-            FileLampiranName = "Invoice_ATK_CV_GrahaPustaka.pdf", FileLampiranPath = "/uploader/api/v1/minio/preview/sample-invoice-atk.pdf",
-            StatusBku = StatusBkuFlow.LunasTransfer,
-            CatatanVerifikasi = "Dokumen lengkap sesuai kontrak e-Order dan faktur pajak tervalidasi.",
-            SubmittedAt = new DateTime(2026, 2, 10, 11, 0, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 10, 13, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 10, 14, 0, 0, DateTimeKind.Utc),
-            TokenOtpPa = "482910", TokenCreatedByNrk = sman1.NrkKepalaSekolah,
-            TokenExpiredAt = new DateTime(2026, 2, 10, 15, 0, 0, DateTimeKind.Utc),
-            NoJurnalBank = "JRN-DKI-20260210088", TanggalTransferBank = new DateTime(2026, 2, 10, 14, 15, 0, DateTimeKind.Utc),
-            StatusTransferBank = "00", CreatedBy = "bendahara.sman1"
-        };
-        bkuLunas.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasAtk.Id, KodeKegiatan = rkasAtk.KodeKegiatan, NamaKegiatan = rkasAtk.NamaKegiatan,
-            KodeAkun = rkasAtk.KodeAkun, NamaAkun = rkasAtk.NamaAkun,
-            KodeKomponen = rkasAtk.KodeKomponen, NamaKomponen = rkasAtk.NamaKomponen, Spesifikasi = rkasAtk.Spesifikasi,
-            Volume = 6.66m, Satuan = rkasAtk.Satuan, HargaSatuan = 2500000m, Jumlah = 16650000m
-        });
-        bkuLunas.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P5", NamaPajak = "PPN (Pajak Pertambahan Nilai 11%)", KodeMap = "411211", KodeJenisSetoran = "920",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 15000000m, TarifPersen = 11m, NilaiPajak = 1650000m,
-            KodeBilling = "820260210482910", BillingCreatedAt = new DateTime(2026, 2, 10, 14, 20, 0, DateTimeKind.Utc),
-            BillingExpiredAt = new DateTime(2026, 3, 12, 14, 20, 0, DateTimeKind.Utc),
-            Ntpn = "A7B92026DKI00124", Ntb = "000129384712", TanggalLunasPajak = new DateTime(2026, 2, 10, 14, 25, 0, DateTimeKind.Utc),
-            StatusPajak = StatusPajakFlow.LunasNtpn
-        });
-        bkuLunas.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P2", NamaPajak = "PPh Pasal 22 (Pembelian Barang > Rp 2 Juta)", KodeMap = "411122", KodeJenisSetoran = "920",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 15000000m, TarifPersen = 1.5m, NilaiPajak = 225000m,
-            KodeBilling = "820260210482911", BillingCreatedAt = new DateTime(2026, 2, 10, 14, 21, 0, DateTimeKind.Utc),
-            BillingExpiredAt = new DateTime(2026, 3, 12, 14, 21, 0, DateTimeKind.Utc),
-            Ntpn = "C4D12026DKI00125", Ntb = "000129384713", TanggalLunasPajak = new DateTime(2026, 2, 10, 14, 26, 0, DateTimeKind.Utc),
-            StatusPajak = StatusPajakFlow.LunasNtpn
-        });
-
-        // BKU 3 (JJ - Disetujui PA => Siap Demo Permohonan Token & Transfer Bank DKI + Bayar Pajak!)
-        var bkuSiapBayar = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 3,
-            NomorBku = "BKU-BOS-2026-0003", NomorBukti = "KW/TEKNIK/2026/019",
-            TanggalTransaksi = new DateTime(2026, 3, 5, 11, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Jasa Servis, Cuci & Isi Freon 20 Unit AC Ruang Kelas SMAN 1",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 7000000m, TotalPotonganPajak = 140000m, NilaiNettoTransfer = 6860000m,
-            NamaRekanan = "PT. SEJUK PRIMA TEKNIK", KodeBankRekanan = "014", NamaBankRekanan = "Bank BCA",
-            NoRekRekanan = "5400881234", NamaPemilikRekRekanan = "PT. SEJUK PRIMA TEKNIK",
-            NpwpRekanan = "02.555.666.7-033.000", NamaWpRekanan = "PT. SEJUK PRIMA TEKNIK",
-            FileLampiranName = "BA_Servis_AC_20Unit.pdf", FileLampiranPath = "/uploader/api/v1/minio/preview/sample-invoice-ac.pdf",
-            StatusBku = StatusBkuFlow.DisetujuiPa,
-            CatatanVerifikasi = "Disetujui PA. Silakan lanjutkan Permohonan Token Bank DKI & Transfer SPJ.",
-            SubmittedAt = new DateTime(2026, 3, 5, 12, 0, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 3, 5, 13, 30, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 3, 5, 15, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.sman1"
-        };
-        bkuSiapBayar.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasAc.Id, KodeKegiatan = rkasAc.KodeKegiatan, NamaKegiatan = rkasAc.NamaKegiatan,
-            KodeAkun = rkasAc.KodeAkun, NamaAkun = rkasAc.NamaAkun,
-            KodeKomponen = rkasAc.KodeKomponen, NamaKomponen = rkasAc.NamaKomponen, Spesifikasi = rkasAc.Spesifikasi,
-            Volume = 20, Satuan = rkasAc.Satuan, HargaSatuan = 350000m, Jumlah = 7000000m
-        });
-        bkuSiapBayar.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P3", NamaPajak = "PPh Pasal 23 (Jasa Pemeliharaan/Sewa/Katering)", KodeMap = "411124", KodeJenisSetoran = "100",
-            MasaPajak = "03", TahunPajak = 2026, DasarPengenaanPajak = 7000000m, TarifPersen = 2m, NilaiPajak = 140000m,
-            StatusPajak = StatusPajakFlow.BelumBilling
-        });
-
-        // BKU 4 (JJ - Diajukan ke TU => Siap Demo Approval TU -> Approval PA!)
-        var bkuMenungguTu = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 3,
-            NomorBku = "BKU-BOS-2026-0004", NomorBukti = "PLN/VA/2026/03",
-            TanggalTransaksi = new DateTime(2026, 3, 12, 9, 15, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.VaPln,
-            Uraian = "Pembayaran Tagihan Rekening Listrik PLN Bulan Maret 2026 (VA PLN)",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 9250000m, TotalPotonganPajak = 0m, NilaiNettoTransfer = 9250000m,
-            NamaRekanan = "PT PLN (PERSERO) UID JAKARTA RAYA", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI Virtual Account",
-            NoRekRekanan = "8801154300221109", NamaPemilikRekRekanan = "PLN UID JAYA - SMAN 1 JAKARTA",
-            NpwpRekanan = "01.001.629.3-051.000", NamaWpRekanan = "PT PLN (PERSERO)",
-            NoVaAtauPesanan = "541100229988",
-            FileLampiranName = "Tagihan_PLN_Maret_2026.pdf", FileLampiranPath = "/uploader/api/v1/minio/preview/sample-invoice-pln.pdf",
-            StatusBku = StatusBkuFlow.DiajukanTu,
-            SubmittedAt = new DateTime(2026, 3, 12, 9, 30, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.sman1"
-        };
-        bkuMenungguTu.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasPln.Id, KodeKegiatan = rkasPln.KodeKegiatan, NamaKegiatan = rkasPln.NamaKegiatan,
-            KodeAkun = rkasPln.KodeAkun, NamaAkun = rkasPln.NamaAkun,
-            KodeKomponen = rkasPln.KodeKomponen, NamaKomponen = rkasPln.NamaKomponen, Spesifikasi = rkasPln.Spesifikasi,
-            Volume = 1, Satuan = "Bulan", HargaSatuan = 9250000m, Jumlah = 9250000m
-        });
-
-        // BKU 5 (JJ - Draft => Siap Demo Edit & Pengajuan PK)
-        var bkuDraft = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 3,
-            NomorBku = "BKU-BOS-2026-0005", NomorBukti = "INV/KONS/2026/077",
-            TanggalTransaksi = new DateTime(2026, 3, 18, 10, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Konsumsi Pelatihan Olimpiade Sains Nasional (OSN) Siswa SMAN 1",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 4500000m, TotalPotonganPajak = 90000m, NilaiNettoTransfer = 4410000m,
-            NamaRekanan = "CV. RASA NUSANTARA CATERING", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110044556677", NamaPemilikRekRekanan = "CV. RASA NUSANTARA CATERING",
-            NpwpRekanan = "03.777.888.9-012.000", NamaWpRekanan = "CV. RASA NUSANTARA CATERING",
-            StatusBku = StatusBkuFlow.Draft,
-            CreatedBy = "bendahara.sman1"
-        };
-        bkuDraft.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasKonsumsi.Id, KodeKegiatan = rkasKonsumsi.KodeKegiatan, NamaKegiatan = rkasKonsumsi.NamaKegiatan,
-            KodeAkun = rkasKonsumsi.KodeAkun, NamaAkun = rkasKonsumsi.NamaAkun,
-            KodeKomponen = rkasKonsumsi.KodeKomponen, NamaKomponen = rkasKonsumsi.NamaKomponen, Spesifikasi = rkasKonsumsi.Spesifikasi,
-            Volume = 100, Satuan = "Box", HargaSatuan = 45000m, Jumlah = 4500000m
-        });
-        bkuDraft.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P3", NamaPajak = "PPh Pasal 23 (Jasa Pemeliharaan/Sewa/Katering)", KodeMap = "411124", KodeJenisSetoran = "100",
-            MasaPajak = "03", TahunPajak = 2026, DasarPengenaanPajak = 4500000m, TarifPersen = 2m, NilaiPajak = 90000m,
-            StatusPajak = StatusPajakFlow.BelumBilling
-        });
-
-        // BKU BOP (JO + JJ Lunas untuk SMAN 1)
-        var bkuJoBop = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 1,
-            NomorBku = "BKU-BOP-2026-0001", NomorBukti = "SP2D/BPKD-DKI/BOP/2026/0054",
-            TanggalTransaksi = new DateTime(2026, 1, 22, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Pencairan Dropping Dana BOP Triwulan I Tahun 2026 (via SIPKD)",
-            NilaiBrutoMasuk = 329000000m, NilaiBrutoKeluar = 0m, TotalPotonganPajak = 0m, NilaiNettoTransfer = 0m,
-            NamaRekanan = "BPKD PROVINSI DKI JAKARTA", NamaBankRekanan = "Bank DKI", NoRekRekanan = sman1.NoRekBop,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-BOP-20260122001", TanggalTransferBank = new DateTime(2026, 1, 22, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-SIPKD"
-        };
-
-        var bkuBopHonor = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 2,
-            NomorBku = "BKU-BOP-2026-0002", NomorBukti = "KW/BOP/2026/0011",
-            TanggalTransaksi = new DateTime(2026, 2, 18, 13, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Honorarium Narasumber Workshop Implementasi Kurikulum Merdeka",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 9000000m, TotalPotonganPajak = 450000m, NilaiNettoTransfer = 8550000m,
-            NamaRekanan = "DR. BUDI PRASETYO, M.PD", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110077788899", NamaPemilikRekRekanan = "BUDI PRASETYO",
-            NpwpRekanan = "44.112.233.4-001.000", NamaWpRekanan = "BUDI PRASETYO",
-            StatusBku = StatusBkuFlow.LunasTransfer,
-            ApprovedByTuAt = new DateTime(2026, 2, 18, 14, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 18, 15, 0, 0, DateTimeKind.Utc),
-            NoJurnalBank = "JRN-BOP-20260218012", TanggalTransferBank = new DateTime(2026, 2, 18, 15, 30, 0, DateTimeKind.Utc),
-            StatusTransferBank = "00", CreatedBy = "bendahara.sman1"
-        };
-        bkuBopHonor.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasBopHonor.Id, KodeKegiatan = rkasBopHonor.KodeKegiatan, NamaKegiatan = rkasBopHonor.NamaKegiatan,
-            KodeAkun = rkasBopHonor.KodeAkun, NamaAkun = rkasBopHonor.NamaAkun,
-            KodeKomponen = rkasBopHonor.KodeKomponen, NamaKomponen = rkasBopHonor.NamaKomponen, Spesifikasi = rkasBopHonor.Spesifikasi,
-            Volume = 10, Satuan = "OJ", HargaSatuan = 900000m, Jumlah = 9000000m
-        });
-        bkuBopHonor.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P1", NamaPajak = "PPh Pasal 21 (Honorarium/Jasa Pribadi)", KodeMap = "411121", KodeJenisSetoran = "100",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 9000000m, TarifPersen = 5m, NilaiPajak = 450000m,
-            KodeBilling = "820260218991122", BillingCreatedAt = new DateTime(2026, 2, 18, 15, 35, 0, DateTimeKind.Utc),
-            BillingExpiredAt = new DateTime(2026, 3, 20, 15, 35, 0, DateTimeKind.Utc),
-            Ntpn = "B9E42026DKI00771", Ntb = "000991122334", TanggalLunasPajak = new DateTime(2026, 2, 18, 15, 40, 0, DateTimeKind.Utc),
-            StatusPajak = StatusPajakFlow.LunasNtpn
-        });
-
-        // BKU 6 (SMAN 1 - Lunas Transfer #2 agar selalu ada kandidat Batal Transfer SPJ selain BKU-0002)
-        var bkuSmanLunas2 = new BkuTransaction
-        {
-            SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 2,
-            NomorBku = "BKU-BOS-2026-0006", NomorBukti = "INV/BOOK/2026/088",
-            TanggalTransaksi = new DateTime(2026, 2, 20, 11, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Pengadaan Buku Referensi Olimpiade Sains Perpustakaan SMAN 1",
-            NilaiBrutoMasuk = 0m, NilaiBrutoKeluar = 6200000m, TotalPotonganPajak = 93000m, NilaiNettoTransfer = 6107000m,
-            NamaRekanan = "PT. ERLANGGA MAKMUR", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110099887766", NamaPemilikRekRekanan = "PT. ERLANGGA MAKMUR",
-            NpwpRekanan = "01.345.678.9-022.000", NamaWpRekanan = "PT. ERLANGGA MAKMUR",
-            FileLampiranName = "Invoice_Buku_Olimpiade.pdf", FileLampiranPath = "/uploader/api/v1/minio/preview/sample-invoice-atk.pdf",
-            StatusBku = StatusBkuFlow.LunasTransfer,
-            SubmittedAt = new DateTime(2026, 2, 20, 11, 30, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 20, 12, 30, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 20, 13, 30, 0, DateTimeKind.Utc),
-            NoJurnalBank = "JRN-DKI-20260220099", TanggalTransferBank = new DateTime(2026, 2, 20, 14, 0, 0, DateTimeKind.Utc),
-            StatusTransferBank = "00", CreatedBy = "bendahara.sman1"
-        };
-        bkuSmanLunas2.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasAtk.Id, KodeKegiatan = "02.02.01", NamaKegiatan = "Pengembangan Perpustakaan Sekolah",
-            KodeAkun = rkasAtk.KodeAkun, NamaAkun = rkasAtk.NamaAkun,
-            KodeKomponen = "KMP-BUKU-01", NamaKomponen = "Buku Referensi Olimpiade Sains", Spesifikasi = "Cetakan Baru",
-            Volume = 20, Satuan = "Paket", HargaSatuan = 310000m, Jumlah = 6200000m
-        });
-        bkuSmanLunas2.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P2", NamaPajak = "PPh Pasal 22 (Pembelian Barang > Rp 2 Juta)", KodeMap = "411122", KodeJenisSetoran = "920",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 6200000m, TarifPersen = 1.5m, NilaiPajak = 93000m,
-            KodeBilling = "820260220112233", BillingCreatedAt = new DateTime(2026, 2, 20, 14, 5, 0, DateTimeKind.Utc),
-            Ntpn = "D5F22026DKI00199", Ntb = "000129389900", TanggalLunasPajak = new DateTime(2026, 2, 20, 14, 10, 0, DateTimeKind.Utc),
-            StatusPajak = StatusPajakFlow.LunasNtpn
-        });
-
-        // BKU SMPN 115 JAKARTA (BOS JO + JJ Lunas + JJ Draft, BOP JO + JJ Lunas)
-        var bkuSmpJoBos = new BkuTransaction
-        {
-            SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 1,
-            NomorBku = "BKU-BOS-2026-0101", NomorBukti = "SP2D/KEMENDIKBUD/BOS/2026/0215",
-            TanggalTransaksi = new DateTime(2026, 1, 20, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Penerimaan Dropping Dana BOSP Tahap 1 SMPN 115 Jakarta",
-            NilaiBrutoMasuk = 289000000m, NamaRekanan = "KAS NEGARA / KPPN JAKARTA II",
-            NamaBankRekanan = "Bank DKI", NoRekRekanan = smpn115.NoRekBos,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-SMP-20260120001", TanggalTransferBank = new DateTime(2026, 1, 20, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-DROPPING"
-        };
-        var bkuSmpBosLunas = new BkuTransaction
-        {
-            SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 2,
-            NomorBku = "BKU-BOS-2026-0102", NomorBukti = "INV/SMP115/2026/014",
-            TanggalTransaksi = new DateTime(2026, 2, 14, 10, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Pengadaan ATK & Cetak Naskah PTS Genap SMPN 115 Jakarta",
-            NilaiBrutoKeluar = 8500000m, TotalPotonganPajak = 935000m, NilaiNettoTransfer = 7565000m,
-            NamaRekanan = "CV. GRAHA PUSTAKA NUSANTARA", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110099887766", NpwpRekanan = "01.345.678.9-022.000",
-            StatusBku = StatusBkuFlow.LunasTransfer, NoJurnalBank = "JRN-SMP-20260214002", StatusTransferBank = "00",
-            TanggalTransferBank = new DateTime(2026, 2, 14, 14, 0, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 14, 11, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 14, 12, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.smpn115"
-        };
-        bkuSmpBosLunas.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSmpAtk.Id, KodeKegiatan = rkasSmpAtk.KodeKegiatan, NamaKegiatan = rkasSmpAtk.NamaKegiatan,
-            KodeAkun = rkasSmpAtk.KodeAkun, NamaAkun = rkasSmpAtk.NamaAkun, KodeKomponen = rkasSmpAtk.KodeKomponen,
-            NamaKomponen = rkasSmpAtk.NamaKomponen, Spesifikasi = rkasSmpAtk.Spesifikasi, Volume = 5, Satuan = "Paket", HargaSatuan = 1700000m, Jumlah = 8500000m
-        });
-        bkuSmpBosLunas.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P5", NamaPajak = "PPN (Pajak Pertambahan Nilai 11%)", KodeMap = "411211", KodeJenisSetoran = "920",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 8500000m, TarifPersen = 11m, NilaiPajak = 935000m,
-            KodeBilling = "820260214556677", Ntpn = "S1B22026DKI00311", Ntb = "000129387711",
-            TanggalLunasPajak = new DateTime(2026, 2, 14, 14, 15, 0, DateTimeKind.Utc), StatusPajak = StatusPajakFlow.LunasNtpn
-        });
-        var bkuSmpBosDraft = new BkuTransaction
-        {
-            SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 3,
-            NomorBku = "BKU-BOS-2026-0103", NomorBukti = "PLN/SMP115/2026/03",
-            TanggalTransaksi = new DateTime(2026, 3, 12, 10, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.VaPln,
-            Uraian = "Tagihan Listrik Bulanan PLN SMPN 115 Jakarta",
-            NilaiBrutoKeluar = 5500000m, TotalPotonganPajak = 0m, NilaiNettoTransfer = 5500000m,
-            NamaRekanan = "PT PLN (PERSERO) UID JAYA", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI Virtual Account",
-            NoRekRekanan = "8801154300998811", NoVaAtauPesanan = "541100998811",
-            StatusBku = StatusBkuFlow.Draft, CreatedBy = "bendahara.smpn115"
-        };
-        bkuSmpBosDraft.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSmpPln.Id, KodeKegiatan = rkasSmpPln.KodeKegiatan, NamaKegiatan = rkasSmpPln.NamaKegiatan,
-            KodeAkun = rkasSmpPln.KodeAkun, NamaAkun = rkasSmpPln.NamaAkun, KodeKomponen = rkasSmpPln.KodeKomponen,
-            NamaKomponen = rkasSmpPln.NamaKomponen, Spesifikasi = rkasSmpPln.Spesifikasi, Volume = 1, Satuan = "Bulan", HargaSatuan = 5500000m, Jumlah = 5500000m
-        });
-
-        var bkuSmpJoBop = new BkuTransaction
-        {
-            SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 1,
-            NomorBku = "BKU-BOP-2026-0101", NomorBukti = "SP2D/BPKD-DKI/BOP/2026/0220",
-            TanggalTransaksi = new DateTime(2026, 1, 25, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Pencairan Dropping Dana BOP Triwulan I SMPN 115 Jakarta",
-            NilaiBrutoMasuk = 196400000m, NamaRekanan = "BPKD PROVINSI DKI JAKARTA", NamaBankRekanan = "Bank DKI", NoRekRekanan = smpn115.NoRekBop,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-SMPBOP-20260125", TanggalTransferBank = new DateTime(2026, 1, 25, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-SIPKD"
-        };
-        var bkuSmpBopLunas = new BkuTransaction
-        {
-            SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 2,
-            NomorBku = "BKU-BOP-2026-0102", NomorBukti = "KW/SMP-BOP/2026/005",
-            TanggalTransaksi = new DateTime(2026, 2, 22, 13, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Honorarium Narasumber Pelatihan Literasi Guru SMPN 115",
-            NilaiBrutoKeluar = 6400000m, TotalPotonganPajak = 320000m, NilaiNettoTransfer = 6080000m,
-            NamaRekanan = "DRS. H. SYAMSUDDIN, M.PD", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110033445566", NpwpRekanan = "55.221.334.5-015.000",
-            StatusBku = StatusBkuFlow.LunasTransfer, NoJurnalBank = "JRN-SMPBOP-20260222", StatusTransferBank = "00",
-            TanggalTransferBank = new DateTime(2026, 2, 22, 14, 0, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 22, 11, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 22, 12, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.smpn115"
-        };
-        bkuSmpBopLunas.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSmpBopHonor.Id, KodeKegiatan = rkasSmpBopHonor.KodeKegiatan, NamaKegiatan = rkasSmpBopHonor.NamaKegiatan,
-            KodeAkun = rkasSmpBopHonor.KodeAkun, NamaAkun = rkasSmpBopHonor.NamaAkun, KodeKomponen = rkasSmpBopHonor.KodeKomponen,
-            NamaKomponen = rkasSmpBopHonor.NamaKomponen, Spesifikasi = rkasSmpBopHonor.Spesifikasi, Volume = 8, Satuan = "OJ", HargaSatuan = 800000m, Jumlah = 6400000m
-        });
-        bkuSmpBopLunas.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P1", NamaPajak = "PPh Pasal 21 (Honorarium/Jasa Pribadi)", KodeMap = "411121", KodeJenisSetoran = "100",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 6400000m, TarifPersen = 5m, NilaiPajak = 320000m,
-            StatusPajak = StatusPajakFlow.BelumBilling
-        });
-
-        // BKU SDN MENTENG 01 PAGI (BOS JO + JJ Lunas + JJ Diajukan TU, BOP JO + JJ Lunas)
-        var bkuSdnJoBos = new BkuTransaction
-        {
-            SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 1,
-            NomorBku = "BKU-BOS-2026-0201", NomorBukti = "SP2D/KEMENDIKBUD/BOS/2026/0301",
-            TanggalTransaksi = new DateTime(2026, 1, 21, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Penerimaan Dropping Dana BOSP Tahap 1 SDN Menteng 01 Pagi",
-            NilaiBrutoMasuk = 186000000m, NamaRekanan = "KAS NEGARA / KPPN JAKARTA I",
-            NamaBankRekanan = "Bank DKI", NoRekRekanan = sdnMenteng01.NoRekBos,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-SDN-20260121001", TanggalTransferBank = new DateTime(2026, 1, 21, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-DROPPING"
-        };
-        var bkuSdnBosLunas = new BkuTransaction
-        {
-            SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 2,
-            NomorBku = "BKU-BOS-2026-0202", NomorBukti = "INV/SDN01/2026/009",
-            TanggalTransaksi = new DateTime(2026, 2, 16, 10, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Pengadaan Buku Pengayaan & Modul Kurikulum Merdeka SDN Menteng 01",
-            NilaiBrutoKeluar = 6000000m, TotalPotonganPajak = 90000m, NilaiNettoTransfer = 5910000m,
-            NamaRekanan = "PT. BALAI PUSTAKA JAKARTA", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110088990011", NpwpRekanan = "01.345.678.9-022.000",
-            StatusBku = StatusBkuFlow.LunasTransfer, NoJurnalBank = "JRN-SDN-20260216002", StatusTransferBank = "00",
-            TanggalTransferBank = new DateTime(2026, 2, 16, 13, 30, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 16, 11, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 16, 12, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.sdnmenteng01"
-        };
-        bkuSdnBosLunas.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSdnBuku.Id, KodeKegiatan = rkasSdnBuku.KodeKegiatan, NamaKegiatan = rkasSdnBuku.NamaKegiatan,
-            KodeAkun = rkasSdnBuku.KodeAkun, NamaAkun = rkasSdnBuku.NamaAkun, KodeKomponen = rkasSdnBuku.KodeKomponen,
-            NamaKomponen = rkasSdnBuku.NamaKomponen, Spesifikasi = rkasSdnBuku.Spesifikasi, Volume = 5, Satuan = "Paket", HargaSatuan = 1200000m, Jumlah = 6000000m
-        });
-        bkuSdnBosLunas.TaxItems.Add(new BkuTaxItem
-        {
-            KodeTrxPajak = "P2", NamaPajak = "PPh Pasal 22 (Pembelian Barang > Rp 2 Juta)", KodeMap = "411122", KodeJenisSetoran = "920",
-            MasaPajak = "02", TahunPajak = 2026, DasarPengenaanPajak = 6000000m, TarifPersen = 1.5m, NilaiPajak = 90000m,
-            StatusPajak = StatusPajakFlow.LunasNtpn, KodeBilling = "820260216778899", Ntpn = "SDN12026DKI00412", Ntb = "000129381122",
-            TanggalLunasPajak = new DateTime(2026, 2, 16, 14, 0, 0, DateTimeKind.Utc)
-        });
-        var bkuSdnBosMenungguTu = new BkuTransaction
-        {
-            SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01", Bulan = 3,
-            NomorBku = "BKU-BOS-2026-0203", NomorBukti = "INV/SDN01/2026/022",
-            TanggalTransaksi = new DateTime(2026, 3, 14, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Konsumsi Rapat Komite Sekolah & Parenting SDN Menteng 01",
-            NilaiBrutoKeluar = 3200000m, TotalPotonganPajak = 64000m, NilaiNettoTransfer = 3136000m,
-            NamaRekanan = "CV. RASA NUSANTARA CATERING", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110044556677", NpwpRekanan = "03.777.888.9-012.000",
-            StatusBku = StatusBkuFlow.DiajukanTu, SubmittedAt = new DateTime(2026, 3, 14, 10, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.sdnmenteng01"
-        };
-        bkuSdnBosMenungguTu.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSdnKonsumsi.Id, KodeKegiatan = rkasSdnKonsumsi.KodeKegiatan, NamaKegiatan = rkasSdnKonsumsi.NamaKegiatan,
-            KodeAkun = rkasSdnKonsumsi.KodeAkun, NamaAkun = rkasSdnKonsumsi.NamaAkun, KodeKomponen = rkasSdnKonsumsi.KodeKomponen,
-            NamaKomponen = rkasSdnKonsumsi.NamaKomponen, Spesifikasi = rkasSdnKonsumsi.Spesifikasi, Volume = 80, Satuan = "Box", HargaSatuan = 40000m, Jumlah = 3200000m
-        });
-
-        var bkuSdnJoBop = new BkuTransaction
-        {
-            SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 1,
-            NomorBku = "BKU-BOP-2026-0201", NomorBukti = "SP2D/BPKD-DKI/BOP/2026/0308",
-            TanggalTransaksi = new DateTime(2026, 1, 24, 9, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.Dropping, JenisPembayaran = JenisPembayaranBku.NonTransfer,
-            Uraian = "Pencairan Dropping Dana BOP Triwulan I SDN Menteng 01",
-            NilaiBrutoMasuk = 145000000m, NamaRekanan = "BPKD PROVINSI DKI JAKARTA", NamaBankRekanan = "Bank DKI", NoRekRekanan = sdnMenteng01.NoRekBop,
-            StatusBku = StatusBkuFlow.LunasTransfer, StatusTransferBank = "00",
-            NoJurnalBank = "JRN-SDNBOP-20260124", TanggalTransferBank = new DateTime(2026, 1, 24, 9, 5, 0, DateTimeKind.Utc),
-            CreatedBy = "SYSTEM-SIPKD"
-        };
-        var bkuSdnBopLunas = new BkuTransaction
-        {
-            SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1", Bulan = 2,
-            NomorBku = "BKU-BOP-2026-0202", NomorBukti = "KW/SDN-BOP/2026/003",
-            TanggalTransaksi = new DateTime(2026, 2, 19, 10, 0, 0, DateTimeKind.Utc),
-            KodeTrx = KodeTrxBku.BelanjaSpj, JenisPembayaran = JenisPembayaranBku.Transfer,
-            Uraian = "Pengadaan Paket Sanitasi & Kebersihan Lingkungan SDN Menteng 01",
-            NilaiBrutoKeluar = 5000000m, TotalPotonganPajak = 550000m, NilaiNettoTransfer = 4450000m,
-            NamaRekanan = "PT. BERSIH SEHAT MANDIRI", KodeBankRekanan = "111", NamaBankRekanan = "Bank DKI",
-            NoRekRekanan = "1110055667788", NpwpRekanan = "01.345.678.9-022.000",
-            StatusBku = StatusBkuFlow.LunasTransfer, NoJurnalBank = "JRN-SDNBOP-20260219", StatusTransferBank = "00",
-            TanggalTransferBank = new DateTime(2026, 2, 19, 13, 0, 0, DateTimeKind.Utc),
-            ApprovedByTuAt = new DateTime(2026, 2, 19, 11, 0, 0, DateTimeKind.Utc),
-            ApprovedByPaAt = new DateTime(2026, 2, 19, 12, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "bendahara.sdnmenteng01"
-        };
-        bkuSdnBopLunas.DetailItems.Add(new BkuDetailItem
-        {
-            RkasItemId = rkasSdnBopKebersihan.Id, KodeKegiatan = rkasSdnBopKebersihan.KodeKegiatan, NamaKegiatan = rkasSdnBopKebersihan.NamaKegiatan,
-            KodeAkun = rkasSdnBopKebersihan.KodeAkun, NamaAkun = rkasSdnBopKebersihan.NamaAkun, KodeKomponen = rkasSdnBopKebersihan.KodeKomponen,
-            NamaKomponen = rkasSdnBopKebersihan.NamaKomponen, Spesifikasi = rkasSdnBopKebersihan.Spesifikasi, Volume = 5, Satuan = "Paket", HargaSatuan = 1000000m, Jumlah = 5000000m
-        });
-
-        db.BkuTransactions.AddRange(
-            bkuLunas, bkuSiapBayar, bkuMenungguTu, bkuDraft, bkuJoBop, bkuBopHonor, bkuSmanLunas2,
-            bkuSmpJoBos, bkuSmpBosLunas, bkuSmpBosDraft, bkuSmpJoBop, bkuSmpBopLunas,
-            bkuSdnJoBos, bkuSdnBosLunas, bkuSdnBosMenungguTu, bkuSdnJoBop, bkuSdnBopLunas);
-        await db.SaveChangesAsync();
-
-        // 8. Dropping Dana (SMAN 1, SMPN 115, SDN Menteng 01 - BOS & BOP)
-        db.DroppingDanas.AddRange(
-            new DroppingDana
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NamaPeriode = "Tahap 1 (Januari - Juni 2026)", NomorSp2d = "SP2D/KEMENDIKBUD/BOS/2026/0112",
-                TanggalDropping = new DateTime(2026, 1, 18, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 466650000m,
-                Keterangan = "Penyaluran Dana BOSP Tahap 1 SMAN 1 Jakarta", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 18, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuJoBos.Id
-            },
-            new DroppingDana
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "02",
-                NamaPeriode = "Tahap 2 (Juli - Desember 2026)", NomorSp2d = "SP2D/KEMENDIKBUD/BOS/2026/0890",
-                TanggalDropping = new DateTime(2026, 7, 10, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 300000000m,
-                Keterangan = "Penyaluran Dana BOSP Tahap 2 SMAN 1 Jakarta (Menunggu Konfirmasi Bendahara)", IsConfirmedToBku = false
-            },
-            new DroppingDana
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1",
-                NamaPeriode = "Triwulan I (Januari - Maret 2026)", NomorSp2d = "SP2D/BPKD-DKI/BOP/2026/0054",
-                TanggalDropping = new DateTime(2026, 1, 22, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 329000000m,
-                Keterangan = "Pencairan Dana BOP Triwulan I SMAN 1 Jakarta", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 22, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuJoBop.Id
-            },
-            new DroppingDana
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NamaPeriode = "Tahap 1 (Januari - Juni 2026)", NomorSp2d = "SP2D/KEMENDIKBUD/BOS/2026/0215",
-                TanggalDropping = new DateTime(2026, 1, 20, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 289000000m,
-                Keterangan = "Penyaluran Dana BOSP Tahap 1 SMPN 115 Jakarta", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 20, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuSmpJoBos.Id
-            },
-            new DroppingDana
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "02",
-                NamaPeriode = "Tahap 2 (Juli - Desember 2026)", NomorSp2d = "SP2D/KEMENDIKBUD/BOS/2026/0915",
-                TanggalDropping = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 185000000m,
-                Keterangan = "Penyaluran Dana BOSP Tahap 2 SMPN 115 Jakarta", IsConfirmedToBku = false
-            },
-            new DroppingDana
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1",
-                NamaPeriode = "Triwulan I (Januari - Maret 2026)", NomorSp2d = "SP2D/BPKD-DKI/BOP/2026/0220",
-                TanggalDropping = new DateTime(2026, 1, 25, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 196400000m,
-                Keterangan = "Pencairan Dana BOP Triwulan I SMPN 115 Jakarta", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 25, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuSmpJoBop.Id
-            },
-            new DroppingDana
-            {
-                SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NamaPeriode = "Tahap 1 (Januari - Juni 2026)", NomorSp2d = "SP2D/KEMENDIKBUD/BOS/2026/0301",
-                TanggalDropping = new DateTime(2026, 1, 21, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 186000000m,
-                Keterangan = "Penyaluran Dana BOSP Tahap 1 SDN Menteng 01 Pagi", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 21, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuSdnJoBos.Id
-            },
-            new DroppingDana
-            {
-                SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1",
-                NamaPeriode = "Triwulan I (Januari - Maret 2026)", NomorSp2d = "SP2D/BPKD-DKI/BOP/2026/0308",
-                TanggalDropping = new DateTime(2026, 1, 24, 8, 0, 0, DateTimeKind.Utc), NilaiDropping = 145000000m,
-                Keterangan = "Pencairan Dana BOP Triwulan I SDN Menteng 01 Pagi", IsConfirmedToBku = true,
-                TanggalKonfirmasi = new DateTime(2026, 1, 24, 9, 0, 0, DateTimeKind.Utc), BkuTransactionId = bkuSdnJoBop.Id
-            }
-        );
-
-        // 9. NPD BOP Workflow Seed (SMAN 1, SMPN 115, SDN Menteng 01)
-        db.NpdBops.AddRange(
-            new NpdBop
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, KodePeriode = "TW1", NomorNpd = "NPD/SMAN1/BOP/2026/001",
-                TanggalNpd = new DateTime(2026, 1, 15, 9, 0, 0, DateTimeKind.Utc),
-                Uraian = "Pengajuan Pencairan Dana BOP Triwulan I SMAN 1 Jakarta", NilaiPengajuan = 329000000m,
-                StatusNpd = 4, NomorSipkd = "SIPKD/NPD-BOP/2026/00112", TanggalKirimSipkd = new DateTime(2026, 1, 20, 14, 0, 0, DateTimeKind.Utc),
-                Catatan = "Sudah cair dan masuk SP2D BOP TW I"
-            },
-            new NpdBop
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, KodePeriode = "TW2", NomorNpd = "NPD/SMAN1/BOP/2026/002",
-                TanggalNpd = new DateTime(2026, 4, 2, 10, 0, 0, DateTimeKind.Utc),
-                Uraian = "Pengajuan Pencairan Dana BOP Triwulan II SMAN 1 Jakarta", NilaiPengajuan = 285000000m,
-                StatusNpd = 2, // Disetujui PA => Siap didemokan Approval Sudin & Kirim SIPKD!
-                Catatan = "Disetujui Kepala Sekolah, menunggu persetujuan Sudin Wilayah I Jakarta Pusat"
-            },
-            new NpdBop
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, KodePeriode = "TW1", NomorNpd = "NPD/SMPN115/BOP/2026/001",
-                TanggalNpd = new DateTime(2026, 1, 17, 9, 0, 0, DateTimeKind.Utc),
-                Uraian = "Pengajuan Pencairan Dana BOP Triwulan I SMPN 115 Jakarta", NilaiPengajuan = 196400000m,
-                StatusNpd = 4, NomorSipkd = "SIPKD/NPD-BOP/2026/00220", TanggalKirimSipkd = new DateTime(2026, 1, 22, 14, 0, 0, DateTimeKind.Utc),
-                Catatan = "Sudah cair dan masuk SP2D BOP TW I"
-            },
-            new NpdBop
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, KodePeriode = "TW2", NomorNpd = "NPD/SMPN115/BOP/2026/002",
-                TanggalNpd = new DateTime(2026, 4, 4, 10, 0, 0, DateTimeKind.Utc),
-                Uraian = "Pengajuan Pencairan Dana BOP Triwulan II SMPN 115 Jakarta", NilaiPengajuan = 165000000m,
-                StatusNpd = 1,
-                Catatan = "Diajukan Bendahara SMPN 115 Jakarta, menunggu persetujuan PA"
-            },
-            new NpdBop
-            {
-                SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, KodePeriode = "TW1", NomorNpd = "NPD/SDN01/BOP/2026/001",
-                TanggalNpd = new DateTime(2026, 1, 18, 9, 0, 0, DateTimeKind.Utc),
-                Uraian = "Pengajuan Pencairan Dana BOP Triwulan I SDN Menteng 01 Pagi", NilaiPengajuan = 145000000m,
-                StatusNpd = 4, NomorSipkd = "SIPKD/NPD-BOP/2026/00308", TanggalKirimSipkd = new DateTime(2026, 1, 23, 14, 0, 0, DateTimeKind.Utc),
-                Catatan = "Sudah cair dan masuk SP2D BOP TW I"
-            }
-        );
-
-        // 10. Bank Mutations (Rekening Koran Bank DKI - SMAN 1, SMPN 115, SDN Menteng 01)
-        db.BankMutations.AddRange(
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 1, 18, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-DKI-20260118001", Uraian = "CR DROPPING DANA BOSP TAHAP 1 TA 2026",
-                TipeMutasi = "K", Nominal = 466650000m, SaldoAkhir = 466650000m, KodeTrx = "JO", BkuTransactionId = bkuJoBos.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 10, 14, 15, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-DKI-20260210088", Uraian = "DB CMS SPJ CV. GRAHA PUSTAKA NUSANTARA (E-ORDER ATK)",
-                TipeMutasi = "D", Nominal = 14775000m, SaldoAkhir = 451875000m, KodeTrx = "JJ", BkuTransactionId = bkuLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 10, 14, 25, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000129384712", Uraian = "DB MPN PAJAK PPN BILLING 820260210482910 (NTPN A7B92026DKI00124)",
-                TipeMutasi = "D", Nominal = 1650000m, SaldoAkhir = 450225000m, KodeTrx = "P5", BkuTransactionId = bkuLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 10, 14, 26, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000129384713", Uraian = "DB MPN PAJAK PPH 22 BILLING 820260210482911 (NTPN C4D12026DKI00125)",
-                TipeMutasi = "D", Nominal = 225000m, SaldoAkhir = 450000000m, KodeTrx = "P2", BkuTransactionId = bkuLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 20, 14, 0, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-DKI-20260220099", Uraian = "DB CMS SPJ PT. ERLANGGA MAKMUR (BUKU OLIMPIADE)",
-                TipeMutasi = "D", Nominal = 6107000m, SaldoAkhir = 443893000m, KodeTrx = "JJ", BkuTransactionId = bkuSmanLunas2.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOS", NomorRekening = sman1.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 20, 14, 10, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000129389900", Uraian = "DB MPN PAJAK PPH 22 BILLING 820260220112233 (NTPN D5F22026DKI00199)",
-                TipeMutasi = "D", Nominal = 93000m, SaldoAkhir = 443800000m, KodeTrx = "P2", BkuTransactionId = bkuSmanLunas2.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOP", NomorRekening = sman1.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 1, 22, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-BOP-20260122001", Uraian = "CR DROPPING DANA BOP TRIWULAN I TA 2026",
-                TipeMutasi = "K", Nominal = 329000000m, SaldoAkhir = 329000000m, KodeTrx = "JO", BkuTransactionId = bkuJoBop.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOP", NomorRekening = sman1.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 2, 18, 15, 30, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-BOP-20260218012", Uraian = "DB CMS HONORARIUM NARASUMBER DR. BUDI PRASETYO",
-                TipeMutasi = "D", Nominal = 8550000m, SaldoAkhir = 320450000m, KodeTrx = "JJ", BkuTransactionId = bkuBopHonor.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sman1.Id, SumberDana = "BOP", NomorRekening = sman1.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 2, 18, 15, 40, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000991122334", Uraian = "DB MPN PAJAK PPH 21 BILLING 820260218991122 (NTPN B9E42026DKI00771)",
-                TipeMutasi = "D", Nominal = 450000m, SaldoAkhir = 320000000m, KodeTrx = "P1", BkuTransactionId = bkuBopHonor.Id
-            },
-            // SMPN 115 Jakarta
-            new BankMutation
-            {
-                SekolahId = smpn115.Id, SumberDana = "BOS", NomorRekening = smpn115.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 1, 20, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SMP-20260120001", Uraian = "CR DROPPING DANA BOSP TAHAP 1 SMPN 115 JAKARTA",
-                TipeMutasi = "K", Nominal = 289000000m, SaldoAkhir = 289000000m, KodeTrx = "JO", BkuTransactionId = bkuSmpJoBos.Id
-            },
-            new BankMutation
-            {
-                SekolahId = smpn115.Id, SumberDana = "BOS", NomorRekening = smpn115.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 14, 14, 0, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SMP-20260214002", Uraian = "DB CMS SPJ CV. GRAHA PUSTAKA NUSANTARA (ATK SMPN 115)",
-                TipeMutasi = "D", Nominal = 7565000m, SaldoAkhir = 281435000m, KodeTrx = "JJ", BkuTransactionId = bkuSmpBosLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = smpn115.Id, SumberDana = "BOS", NomorRekening = smpn115.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 14, 14, 15, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000129387711", Uraian = "DB MPN PAJAK PPN BILLING 820260214556677 (NTPN S1B22026DKI00311)",
-                TipeMutasi = "D", Nominal = 935000m, SaldoAkhir = 280500000m, KodeTrx = "P5", BkuTransactionId = bkuSmpBosLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = smpn115.Id, SumberDana = "BOP", NomorRekening = smpn115.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 1, 25, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SMPBOP-20260125", Uraian = "CR DROPPING DANA BOP TW I SMPN 115 JAKARTA",
-                TipeMutasi = "K", Nominal = 196400000m, SaldoAkhir = 196400000m, KodeTrx = "JO", BkuTransactionId = bkuSmpJoBop.Id
-            },
-            new BankMutation
-            {
-                SekolahId = smpn115.Id, SumberDana = "BOP", NomorRekening = smpn115.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 2, 22, 14, 0, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SMPBOP-20260222", Uraian = "DB CMS HONORARIUM LITERASI DRS. H. SYAMSUDDIN",
-                TipeMutasi = "D", Nominal = 6080000m, SaldoAkhir = 190320000m, KodeTrx = "JJ", BkuTransactionId = bkuSmpBopLunas.Id
-            },
-            // SDN Menteng 01 Pagi
-            new BankMutation
-            {
-                SekolahId = sdnMenteng01.Id, SumberDana = "BOS", NomorRekening = sdnMenteng01.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 1, 21, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SDN-20260121001", Uraian = "CR DROPPING DANA BOSP TAHAP 1 SDN MENTENG 01 PAGI",
-                TipeMutasi = "K", Nominal = 186000000m, SaldoAkhir = 186000000m, KodeTrx = "JO", BkuTransactionId = bkuSdnJoBos.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sdnMenteng01.Id, SumberDana = "BOS", NomorRekening = sdnMenteng01.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 16, 13, 30, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SDN-20260216002", Uraian = "DB CMS SPJ PT. BALAI PUSTAKA JAKARTA (BUKU KURIKULUM)",
-                TipeMutasi = "D", Nominal = 5910000m, SaldoAkhir = 180090000m, KodeTrx = "JJ", BkuTransactionId = bkuSdnBosLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sdnMenteng01.Id, SumberDana = "BOS", NomorRekening = sdnMenteng01.NoRekBos,
-                TanggalTransaksi = new DateTime(2026, 2, 16, 14, 0, 0, DateTimeKind.Utc),
-                NomorReferensi = "NTB-000129381122", Uraian = "DB MPN PAJAK PPH 22 BILLING 820260216778899 (NTPN SDN12026DKI00412)",
-                TipeMutasi = "D", Nominal = 90000m, SaldoAkhir = 180000000m, KodeTrx = "P2", BkuTransactionId = bkuSdnBosLunas.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sdnMenteng01.Id, SumberDana = "BOP", NomorRekening = sdnMenteng01.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 1, 24, 9, 5, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SDNBOP-20260124", Uraian = "CR DROPPING DANA BOP TW I SDN MENTENG 01 PAGI",
-                TipeMutasi = "K", Nominal = 145000000m, SaldoAkhir = 145000000m, KodeTrx = "JO", BkuTransactionId = bkuSdnJoBop.Id
-            },
-            new BankMutation
-            {
-                SekolahId = sdnMenteng01.Id, SumberDana = "BOP", NomorRekening = sdnMenteng01.NoRekBop,
-                TanggalTransaksi = new DateTime(2026, 2, 19, 13, 0, 0, DateTimeKind.Utc),
-                NomorReferensi = "JRN-SDNBOP-20260219", Uraian = "DB CMS SPJ PT. BERSIH SEHAT MANDIRI (SANITASI)",
-                TipeMutasi = "D", Nominal = 4450000m, SaldoAkhir = 140550000m, KodeTrx = "JJ", BkuTransactionId = bkuSdnBopLunas.Id
-            }
-        );
-
-        // 10b. BAP Kas & Tutup BKU Seed (agar Tutup BKU & Batal Tutup BKU langsung terisi untuk semua sekolah)
-        db.BapKasReports.AddRange(
-            new BapKasReport
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NomorBap = "BAP-KAS/BOS/SMAN1/2026/01", TanggalBap = new DateTime(2026, 1, 31, 10, 0, 0, DateTimeKind.Utc),
-                SaldoBku = 466650000m, SaldoRekeningKoran = 466650000m, SaldoKasTunai = 0m, SelisihKas = 0m,
-                KeteranganSelisih = "Saldo BKU Januari 2026 sesuai dengan Rekening Koran Bank DKI.",
-                StatusBap = 2, IsTutupBuku = true,
-                ApprovedPaAt = new DateTime(2026, 1, 31, 12, 0, 0, DateTimeKind.Utc),
-                ApprovedDinasAt = new DateTime(2026, 1, 31, 15, 0, 0, DateTimeKind.Utc)
-            },
-            new BapKasReport
-            {
-                SekolahId = sman1.Id, TahunAnggaran = 2026, SumberDana = "BOP", KodePeriode = "TW1",
-                NomorBap = "BAP-KAS/BOP/SMAN1/2026/TW1", TanggalBap = new DateTime(2026, 3, 31, 10, 0, 0, DateTimeKind.Utc),
-                SaldoBku = 320000000m, SaldoRekeningKoran = 320000000m, SaldoKasTunai = 0m, SelisihKas = 0m,
-                KeteranganSelisih = "Rekonsiliasi BKU BOP Triwulan I SMAN 1 Jakarta nihil selisih.",
-                StatusBap = 1, IsTutupBuku = false,
-                ApprovedPaAt = new DateTime(2026, 3, 31, 12, 0, 0, DateTimeKind.Utc)
-            },
-            new BapKasReport
-            {
-                SekolahId = smpn115.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NomorBap = "BAP-KAS/BOS/SMPN115/2026/01", TanggalBap = new DateTime(2026, 1, 31, 10, 0, 0, DateTimeKind.Utc),
-                SaldoBku = 289000000m, SaldoRekeningKoran = 289000000m, SaldoKasTunai = 0m, SelisihKas = 0m,
-                KeteranganSelisih = "Tutup BKU Januari 2026 SMPN 115 Jakarta.",
-                StatusBap = 2, IsTutupBuku = true,
-                ApprovedPaAt = new DateTime(2026, 1, 31, 11, 30, 0, DateTimeKind.Utc),
-                ApprovedDinasAt = new DateTime(2026, 1, 31, 14, 0, 0, DateTimeKind.Utc)
-            },
-            new BapKasReport
-            {
-                SekolahId = sdnMenteng01.Id, TahunAnggaran = 2026, SumberDana = "BOS", KodePeriode = "01",
-                NomorBap = "BAP-KAS/BOS/SDN01/2026/01", TanggalBap = new DateTime(2026, 1, 31, 10, 0, 0, DateTimeKind.Utc),
-                SaldoBku = 186000000m, SaldoRekeningKoran = 186000000m, SaldoKasTunai = 0m, SelisihKas = 0m,
-                KeteranganSelisih = "Tutup BKU Januari 2026 SDN Menteng 01 Pagi.",
-                StatusBap = 2, IsTutupBuku = true,
-                ApprovedPaAt = new DateTime(2026, 1, 31, 11, 45, 0, DateTimeKind.Utc),
-                ApprovedDinasAt = new DateTime(2026, 1, 31, 14, 30, 0, DateTimeKind.Utc)
-            }
-        );
-
-        // 10c. Batal Transfer SPJ Seed (BOS & BOP across Draft PK, Diajukan TU, Disetujui PA)
-        db.BatalTransferSpjs.AddRange(
-            new BatalTransferSpj
-            {
-                BkuTransactionId = bkuSmanLunas2.Id,
-                SekolahId = sman1.Id,
-                TahunAnggaran = 2026,
-                SumberDana = "BOS",
-                JenisPeriode = "TW",
-                KodePeriode = "01",
-                NomorBeritaAcara = "BA-BATAL/BOS/SMAN1/2026/001",
-                TanggalPembatalan = new DateTime(2026, 2, 24, 9, 0, 0, DateTimeKind.Utc),
-                NomorBkuMohon = bkuSmanLunas2.NomorBku,
-                NilaiSpjBatal = bkuSmanLunas2.NilaiBrutoKeluar,
-                NrkPengkoreksi = sman1.NrkBendahara,
-                NamaPengkoreksi = sman1.NamaBendahara,
-                FileBeritaAcaraName = "BA_Pembatalan_SPJ_Buku_Olimpiade.pdf",
-                FileBeritaAcaraPath = "/uploader/api/v1/minio/preview/ba-batal-bos-001.pdf",
-                UraianBeritaAcara = "Pembatalan SPJ karena terdapat kesalahan nomor rekening vendor penerbit pada batch transfer awal.",
-                PajakTidakDikoreksi = true,
-                StatusBatal = StatusBatalTransferFlow.DisetujuiPaMenungguSudin,
-                CatatanVerifikasi = "Telah diverifikasi TU & PA, menunggu persetujuan final Sudin.",
-                SubmittedByPk = "bendahara.sman1",
-                SubmittedByPkAt = new DateTime(2026, 2, 24, 10, 0, 0, DateTimeKind.Utc),
-                ApprovedByTu = "tu.sman1",
-                ApprovedByTuAt = new DateTime(2026, 2, 24, 11, 30, 0, DateTimeKind.Utc),
-                ApprovedByPa = "kepsek.sman1",
-                ApprovedByPaAt = new DateTime(2026, 2, 24, 13, 0, 0, DateTimeKind.Utc),
-                CreatedBy = "bendahara.sman1"
-            },
-            new BatalTransferSpj
-            {
-                BkuTransactionId = bkuBopHonor.Id,
-                SekolahId = sman1.Id,
-                TahunAnggaran = 2026,
-                SumberDana = "BOP",
-                JenisPeriode = "TW",
-                KodePeriode = "TW1",
-                NomorBeritaAcara = "BA-BATAL/BOP/SMAN1/2026/001",
-                TanggalPembatalan = new DateTime(2026, 2, 25, 10, 0, 0, DateTimeKind.Utc),
-                NomorBkuMohon = bkuBopHonor.NomorBku,
-                NilaiSpjBatal = bkuBopHonor.NilaiBrutoKeluar,
-                NrkPengkoreksi = sman1.NrkBendahara,
-                NamaPengkoreksi = sman1.NamaBendahara,
-                FileBeritaAcaraName = "BA_Batal_Transfer_BOP_Honor.pdf",
-                FileBeritaAcaraPath = "/uploader/api/v1/minio/preview/ba-batal-bop-001.pdf",
-                UraianBeritaAcara = "Koreksi rincian jam mengajar narasumber IHT Kurikulum Merdeka TW I.",
-                PajakTidakDikoreksi = true,
-                StatusBatal = StatusBatalTransferFlow.DiajukanTu,
-                CatatanVerifikasi = "Diajukan Bendahara ke Verifikator TU.",
-                SubmittedByPk = "bendahara.sman1",
-                SubmittedByPkAt = new DateTime(2026, 2, 25, 11, 0, 0, DateTimeKind.Utc),
-                CreatedBy = "bendahara.sman1"
-            },
-            new BatalTransferSpj
-            {
-                BkuTransactionId = bkuSmpBosLunas.Id,
-                SekolahId = smpn115.Id,
-                TahunAnggaran = 2026,
-                SumberDana = "BOS",
-                JenisPeriode = "TW",
-                KodePeriode = "01",
-                NomorBeritaAcara = "BA-BATAL/BOS/SMPN115/2026/001",
-                TanggalPembatalan = new DateTime(2026, 2, 26, 9, 30, 0, DateTimeKind.Utc),
-                NomorBkuMohon = bkuSmpBosLunas.NomorBku,
-                NilaiSpjBatal = bkuSmpBosLunas.NilaiBrutoKeluar,
-                NrkPengkoreksi = smpn115.NrkBendahara,
-                NamaPengkoreksi = smpn115.NamaBendahara,
-                FileBeritaAcaraName = "BA_Batal_SMPN115_001.pdf",
-                FileBeritaAcaraPath = "/uploader/api/v1/minio/preview/ba-batal-smp115.pdf",
-                UraianBeritaAcara = "Draft berita acara pembatalan transfer cetak naskah PTS karena retur sebagian.",
-                PajakTidakDikoreksi = true,
-                StatusBatal = StatusBatalTransferFlow.DraftPk,
-                CreatedBy = "bendahara.smpn115"
-            },
-            new BatalTransferSpj
-            {
-                BkuTransactionId = bkuSdnBosLunas.Id,
-                SekolahId = sdnMenteng01.Id,
-                TahunAnggaran = 2026,
-                SumberDana = "BOS",
-                JenisPeriode = "TW",
-                KodePeriode = "01",
-                NomorBeritaAcara = "BA-BATAL/BOS/SDN01/2026/001",
-                TanggalPembatalan = new DateTime(2026, 2, 27, 9, 30, 0, DateTimeKind.Utc),
-                NomorBkuMohon = bkuSdnBosLunas.NomorBku,
-                NilaiSpjBatal = bkuSdnBosLunas.NilaiBrutoKeluar,
-                NrkPengkoreksi = sdnMenteng01.NrkBendahara,
-                NamaPengkoreksi = sdnMenteng01.NamaBendahara,
-                FileBeritaAcaraName = "BA_Batal_SDN01_001.pdf",
-                FileBeritaAcaraPath = "/uploader/api/v1/minio/preview/ba-batal-sdn01.pdf",
-                UraianBeritaAcara = "Penyesuaian jumlah eksemplar buku pengayaan SDN Menteng 01 Pagi.",
-                PajakTidakDikoreksi = true,
-                StatusBatal = StatusBatalTransferFlow.DiajukanTu,
-                SubmittedByPk = "bendahara.sdnmenteng01",
-                SubmittedByPkAt = new DateTime(2026, 2, 27, 10, 0, 0, DateTimeKind.Utc),
-                CreatedBy = "bendahara.sdnmenteng01"
-            }
-        );
-
-        // 11. Integration Audit Logs & Helpdesk
-        db.IntegrationAuditLogs.AddRange(
-            new IntegrationAuditLog
-            {
-                SystemName = "BANK_DKI", EndpointCalled = "/api/spj-transfer/transfer", CallerService = "siapbos-api",
-                RequestPayload = "{\"bkuId\":2,\"rekeningTujuan\":\"1110099887766\",\"nominal\":14775000}",
-                ResponsePayload = "{\"bit39\":\"00\",\"noJurnalBank\":\"JRN-DKI-20260210088\"}", StatusCode = "00", IsSuccess = true,
-                Timestamp = new DateTime(2026, 2, 10, 14, 15, 0, DateTimeKind.Utc)
-            },
-            new IntegrationAuditLog
-            {
-                SystemName = "DJP_MPN", EndpointCalled = "/api/spj-transfer-pajak/payment", CallerService = "siapbos-api",
-                RequestPayload = "{\"kodeBilling\":\"820260210482910\",\"nominal\":1650000}",
-                ResponsePayload = "{\"ntpn\":\"A7B92026DKI00124\",\"ntb\":\"000129384712\",\"status\":\"LUNAS\"}", StatusCode = "00", IsSuccess = true,
-                Timestamp = new DateTime(2026, 2, 10, 14, 25, 0, DateTimeKind.Utc)
-            },
-            new IntegrationAuditLog
-            {
-                SystemName = "SIPKD", EndpointCalled = "/api/sipkd/npd/save", CallerService = "siapbop-api",
-                RequestPayload = "{\"nomorNpd\":\"NPD/SMAN1/BOP/2026/001\",\"nilai\":329000000}",
-                ResponsePayload = "{\"responseCode\":\"00\",\"nomorSipkd\":\"SIPKD/NPD-BOP/2026/00112\"}", StatusCode = "00", IsSuccess = true,
-                Timestamp = new DateTime(2026, 1, 20, 14, 0, 0, DateTimeKind.Utc)
-            }
-        );
+        // 8b-11. Dropping Dana, NPD BOP, Mutasi Rekening, BAP Kas & Audit Logs dibiarkan kosong untuk simulasi awal
 
         db.HelpdeskTickets.Add(new HelpdeskTicket
         {
@@ -1474,14 +751,42 @@ public static class DbSeeder
             db.RkasItems.Add(r);
         }
 
+        var pask2026 = await db.MigrasiPasks
+            .Include(m => m.Rincians)
+            .Where(m => m.TahunAnggaran == 2026)
+            .AsNoTracking()
+            .ToListAsync();
+        var paskOldMap = new Dictionary<int, MigrasiPask>();
+        foreach (var p in pask2026)
+        {
+            var oldPaskId = p.Id;
+            p.Id = 0;
+            p.TahunAnggaran = 2025;
+            p.BatchKode = p.BatchKode.Replace("2026", "2025");
+            p.NomorDpaSkpd = p.NomorDpaSkpd.Replace("2026", "2025");
+            p.NamaPask = p.NamaPask.Replace("2026", "2025");
+            p.ImportedAt = p.ImportedAt.AddYears(-1);
+            foreach (var r in p.Rincians)
+            {
+                r.Id = 0;
+                r.MigrasiPaskId = 0;
+            }
+            db.MigrasiPasks.Add(p);
+            paskOldMap[oldPaskId] = p;
+        }
+        await db.SaveChangesAsync();
+
         var drop2026 = await db.DroppingDanas.Where(d => d.TahunAnggaran == 2026).AsNoTracking().ToListAsync();
         foreach (var d in drop2026)
         {
             d.Id = 0;
             d.TahunAnggaran = 2025;
             d.NomorSp2d = d.NomorSp2d.Replace("2026", "2025");
+            d.NomorDpaSkpd = d.NomorDpaSkpd.Replace("2026", "2025");
             d.TanggalDropping = d.TanggalDropping.AddYears(-1);
             if (d.TanggalKonfirmasi.HasValue) d.TanggalKonfirmasi = d.TanggalKonfirmasi.Value.AddYears(-1);
+            if (d.MigrasiPaskId.HasValue && paskOldMap.TryGetValue(d.MigrasiPaskId.Value, out var clonedPask))
+                d.MigrasiPaskId = clonedPask.Id;
             db.DroppingDanas.Add(d);
         }
 
@@ -1491,8 +796,11 @@ public static class DbSeeder
             n.Id = 0;
             n.TahunAnggaran = 2025;
             n.NomorNpd = n.NomorNpd.Replace("2026", "2025");
+            n.NomorDpaSkpd = n.NomorDpaSkpd.Replace("2026", "2025");
             n.TanggalNpd = n.TanggalNpd.AddYears(-1);
             if (n.NomorSipkd != null) n.NomorSipkd = n.NomorSipkd.Replace("2026", "2025");
+            if (n.MigrasiPaskId.HasValue && paskOldMap.TryGetValue(n.MigrasiPaskId.Value, out var clonedPask))
+                n.MigrasiPaskId = clonedPask.Id;
             db.NpdBops.Add(n);
         }
 
@@ -1500,17 +808,26 @@ public static class DbSeeder
             .Include(b => b.DetailItems)
             .Include(b => b.TaxItems)
             .Where(b => b.TahunAnggaran == 2026)
+            .OrderBy(b => b.Id)
             .AsNoTracking()
             .ToListAsync();
 
         var bkuCloneMap = new Dictionary<int, BkuTransaction>();
+        var parentOldIdMap = new Dictionary<BkuTransaction, int>();
         foreach (var b in bku2026)
         {
             var oldId = b.Id;
+            if (b.ParentBkuId.HasValue)
+            {
+                parentOldIdMap[b] = b.ParentBkuId.Value;
+            }
             b.Id = 0;
             b.TahunAnggaran = 2025;
+            b.ParentBkuId = null;
             b.NomorBku = b.NomorBku.Replace("2026", "2025");
             b.NomorBukti = b.NomorBukti.Replace("2026", "2025");
+            if (!string.IsNullOrEmpty(b.ParentNomorBku)) b.ParentNomorBku = b.ParentNomorBku.Replace("2026", "2025");
+            if (!string.IsNullOrEmpty(b.NomorArsip)) b.NomorArsip = b.NomorArsip.Replace("2026", "2025");
             b.TanggalTransaksi = b.TanggalTransaksi.AddYears(-1);
             foreach (var det in b.DetailItems)
             {
@@ -1551,23 +868,164 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
 
-        var batal2026 = await db.BatalTransferSpjs.Where(bt => bt.TahunAnggaran == 2026).AsNoTracking().ToListAsync();
-        foreach (var bt in batal2026)
+        foreach (var kv in parentOldIdMap)
         {
-            var targetBkuId = bkuCloneMap.TryGetValue(bt.BkuTransactionId, out var cloned) ? cloned.Id : bt.BkuTransactionId;
-            bt.Id = 0;
-            bt.BkuTransactionId = targetBkuId;
-            bt.TahunAnggaran = 2025;
-            bt.NomorBeritaAcara = bt.NomorBeritaAcara.Replace("2026", "2025");
-            bt.NomorBkuMohon = bt.NomorBkuMohon.Replace("2026", "2025");
-            bt.TanggalPembatalan = bt.TanggalPembatalan.AddYears(-1);
-            if (bt.SubmittedByPkAt.HasValue) bt.SubmittedByPkAt = bt.SubmittedByPkAt.Value.AddYears(-1);
-            if (bt.ApprovedByTuAt.HasValue) bt.ApprovedByTuAt = bt.ApprovedByTuAt.Value.AddYears(-1);
-            if (bt.ApprovedByPaAt.HasValue) bt.ApprovedByPaAt = bt.ApprovedByPaAt.Value.AddYears(-1);
-            if (bt.ApprovedBySudinAt.HasValue) bt.ApprovedBySudinAt = bt.ApprovedBySudinAt.Value.AddYears(-1);
-            db.BatalTransferSpjs.Add(bt);
+            if (bkuCloneMap.TryGetValue(kv.Value, out var clonedParent))
+            {
+                kv.Key.ParentBkuId = clonedParent.Id;
+                kv.Key.ParentNomorBku = clonedParent.NomorBku;
+            }
+        }
+        await db.SaveChangesAsync();
+    }
+
+    public static List<MasterPeriode> BuildDefaultMasterPeriodes(params int[] extraYears)
+    {
+        var years = new HashSet<int> { 2025, 2026 };
+        foreach (var y in extraYears)
+        {
+            if (y >= 2020 && y <= 2100) years.Add(y);
+        }
+
+        var list = new List<MasterPeriode>();
+        foreach (var tahun in years.OrderBy(y => y))
+        {
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOS", KodePeriode = "01", NamaPeriode = $"Tahap 1 (Januari - Juni {tahun})", BulanMulai = 1, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(tahun, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOS", KodePeriode = "02", NamaPeriode = $"Tahap 2 (Juli - Desember {tahun})", BulanMulai = 7, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(tahun, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOP", KodePeriode = "TW1", NamaPeriode = $"Triwulan I (Januari - Maret {tahun})", BulanMulai = 1, BulanSelesai = 3, BatasPengajuanBelanja = new DateTime(tahun, 3, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOP", KodePeriode = "TW2", NamaPeriode = $"Triwulan II (April - Juni {tahun})", BulanMulai = 4, BulanSelesai = 6, BatasPengajuanBelanja = new DateTime(tahun, 6, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOP", KodePeriode = "TW3", NamaPeriode = $"Triwulan III (Juli - September {tahun})", BulanMulai = 7, BulanSelesai = 9, BatasPengajuanBelanja = new DateTime(tahun, 9, 25, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+            list.Add(new MasterPeriode { TahunAnggaran = tahun, SumberDana = "BOP", KodePeriode = "TW4", NamaPeriode = $"Triwulan IV (Oktober - Desember {tahun})", BulanMulai = 10, BulanSelesai = 12, BatasPengajuanBelanja = new DateTime(tahun, 12, 20, 23, 59, 0, DateTimeKind.Utc), IsActive = true });
+        }
+        return list;
+    }
+
+    public static async Task EnsureMasterPeriodesCompleteAsync(SiapBosDbContext db, params int[] extraYears)
+    {
+        var existingKeys = (await db.MasterPeriodes
+            .Select(p => new { p.TahunAnggaran, p.SumberDana, p.KodePeriode })
+            .ToListAsync())
+            .Select(p => $"{p.TahunAnggaran}|{p.SumberDana}|{p.KodePeriode}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missing = BuildDefaultMasterPeriodes(extraYears)
+            .Where(p => !existingKeys.Contains($"{p.TahunAnggaran}|{p.SumberDana}|{p.KodePeriode}"))
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            db.MasterPeriodes.AddRange(missing);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private static async Task RemoveObsoleteHelpDeskMenusAsync(SiapBosDbContext db)
+    {
+        var obsoleteLinks = new[] { "help-pembayaran-bos", "help-pembayaran-bop", "help-va-pln", "konfirmasi-rekening" };
+        var obsoleteMenus = await db.AppMenus
+            .Where(m => m.KodeAplikasi == "ADMN" && obsoleteLinks.Contains(m.Link))
+            .ToListAsync();
+
+        var modAdmn = await db.AppModules.FirstOrDefaultAsync(m => m.KodeAplikasi == "ADMN");
+        if (modAdmn != null)
+        {
+            modAdmn.Deskripsi = "Batas Pengajuan Belanja, Migrasi RKAS & Dropping Dana BOS & BOP";
+        }
+
+        if (obsoleteMenus.Count == 0 && modAdmn == null)
+            return;
+
+        if (obsoleteMenus.Count > 0)
+        {
+            var obsoleteIds = obsoleteMenus.Select(m => m.Id).ToList();
+            var obsoleteRoleMappings = await db.AppOtoritasMenus
+                .Where(om => obsoleteIds.Contains(om.MenuId))
+                .ToListAsync();
+
+            if (obsoleteRoleMappings.Count > 0)
+                db.AppOtoritasMenus.RemoveRange(obsoleteRoleMappings);
+
+            db.AppMenus.RemoveRange(obsoleteMenus);
+            await db.SaveChangesAsync();
+        }
+
+        // Rapikan urutan sub-menu Administrator & hapus akses modul ADMN yang kini kosong
+        var remainingAdmnMenus = await db.AppMenus
+            .Where(m => m.KodeAplikasi == "ADMN")
+            .OrderBy(m => m.SortOrder)
+            .ThenBy(m => m.Id)
+            .ToListAsync();
+
+        for (int i = 0; i < remainingAdmnMenus.Count; i++)
+        {
+            remainingAdmnMenus[i].SortOrder = i + 1;
+        }
+
+        if (modAdmn != null)
+        {
+            var remainingAdmnMenuIds = remainingAdmnMenus.Select(m => m.Id).ToHashSet();
+            var rolesWithAdmnModule = await db.AppOtoritasAplikasis
+                .Where(oa => oa.ModuleId == modAdmn.Id)
+                .ToListAsync();
+
+            var activeAdmnRoleIds = await db.AppOtoritasMenus
+                .Where(om => remainingAdmnMenuIds.Contains(om.MenuId))
+                .Select(om => om.RoleId)
+                .Distinct()
+                .ToListAsync();
+
+            var activeSet = activeAdmnRoleIds.ToHashSet();
+            var emptyModuleGrants = rolesWithAdmnModule.Where(oa => !activeSet.Contains(oa.RoleId)).ToList();
+            if (emptyModuleGrants.Count > 0)
+                db.AppOtoritasAplikasis.RemoveRange(emptyModuleGrants);
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureAdminGrantedModuleMenusAsync(SiapBosDbContext db)
+    {
+        var adminRole = await db.AppRoles.FirstOrDefaultAsync(r => r.RoleCode == SiapBosRoles.AdminTdi);
+        if (adminRole == null) return;
+
+        var grantedCodes = await db.AppOtoritasAplikasis
+            .Include(oa => oa.Module)
+            .Where(oa => oa.RoleId == adminRole.Id && oa.Module != null)
+            .Select(oa => oa.Module!.KodeAplikasi)
+            .Distinct()
+            .ToListAsync();
+
+        if (grantedCodes.Count == 0) return;
+
+        var codesWithMenus = await db.AppOtoritasMenus
+            .Include(om => om.Menu)
+            .Where(om => om.RoleId == adminRole.Id && om.Menu != null)
+            .Select(om => om.Menu!.KodeAplikasi)
+            .Distinct()
+            .ToListAsync();
+
+        var missingMenuCodes = grantedCodes
+            .Where(code => !codesWithMenus.Contains(code))
+            .ToList();
+
+        if (missingMenuCodes.Count == 0) return;
+
+        var menusToRestore = await db.AppMenus
+            .Where(mn => mn.IsActive && missingMenuCodes.Contains(mn.KodeAplikasi))
+            .Select(mn => mn.Id)
+            .ToListAsync();
+
+        foreach (var menuId in menusToRestore)
+        {
+            db.AppOtoritasMenus.Add(new AppOtoritasMenu
+            {
+                RoleId = adminRole.Id,
+                MenuId = menuId,
+                CreatedBy = "SEED-RESTORE"
+            });
+        }
+
+        if (menusToRestore.Count > 0)
+            await db.SaveChangesAsync();
     }
 }

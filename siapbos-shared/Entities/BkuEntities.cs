@@ -30,14 +30,44 @@ public class BkuTransaction
 
     public DateTime TanggalTransaksi { get; set; }
 
+    public int? ParentBkuId { get; set; }
+
+    [MaxLength(60)]
+    public string? ParentNomorBku { get; set; }
+
     [Required, MaxLength(10)]
     public string KodeTrx { get; set; } = "JJ"; // JO, JJ, P1-P7
 
     [MaxLength(30)]
-    public string JenisPembayaran { get; set; } = "TRANSFER"; // TRANSFER, VA_PLN, E_ORDER, NON_TRANSFER
+    public string JenisPembayaran { get; set; } = "TRANSFER"; // TRANSFER/LURING, VA/DARING_VA/VA_PLN/E_ORDER, PENERIMAAN, PENGELUARAN, NON_TRANSFER
+
+    [MaxLength(30)]
+    public string CaraPembayaran { get; set; } = "BANK"; // BANK | VA
+
+    public bool IsVirtualAccount { get; set; }
+
+    [MaxLength(80)]
+    public string NomorArsip { get; set; } = string.Empty;
+
+    [MaxLength(150)]
+    public string NamaBidang { get; set; } = string.Empty;
+
+    [MaxLength(150)]
+    public string NamaSnp { get; set; } = string.Empty;
 
     [Required, MaxLength(500)]
     public string Uraian { get; set; } = string.Empty;
+
+    [MaxLength(10)]
+    public string? MasaPajak { get; set; }
+
+    public int? TahunPajak { get; set; }
+
+    [Column(TypeName = "numeric(5,2)")]
+    public decimal? TarifPersen { get; set; }
+
+    [Column(TypeName = "numeric(18,2)")]
+    public decimal? DasarPengenaanPajak { get; set; }
 
     [Column(TypeName = "numeric(18,2)")]
     public decimal NilaiBrutoMasuk { get; set; }
@@ -67,11 +97,17 @@ public class BkuTransaction
     [MaxLength(150)]
     public string NamaPemilikRekRekanan { get; set; } = string.Empty;
 
+    [MaxLength(250)]
+    public string AlamatRekanan { get; set; } = string.Empty;
+
     [MaxLength(30)]
     public string NpwpRekanan { get; set; } = string.Empty;
 
     [MaxLength(150)]
     public string NamaWpRekanan { get; set; } = string.Empty;
+
+    [MaxLength(250)]
+    public string AlamatWpRekanan { get; set; } = string.Empty;
 
     [MaxLength(80)]
     public string? NoVaAtauPesanan { get; set; }
@@ -106,6 +142,12 @@ public class BkuTransaction
 
     [MaxLength(60)]
     public string? NoJurnalBank { get; set; }
+
+    [MaxLength(40)]
+    public string? StanVa { get; set; }
+
+    [MaxLength(60)]
+    public string? KodeReffVa { get; set; }
 
     public DateTime? TanggalTransferBank { get; set; }
 

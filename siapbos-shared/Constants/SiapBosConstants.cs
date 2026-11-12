@@ -46,16 +46,6 @@ public static class KodeTrxBku
         kode is Dropping or BelanjaSpj || IsPajak(kode);
 }
 
-public static class StatusBatalTransferFlow
-{
-    public const int DraftPk = 0;
-    public const int DiajukanTu = 1;
-    public const int DisetujuiTuMenungguPa = 2;
-    public const int DisetujuiPaMenungguSudin = 3;
-    public const int DisetujuiSudinSelesai = 4;
-    public const int Ditolak = 9;
-}
-
 public static class StatusBkuFlow
 {
     public const int Draft = 0;
@@ -73,7 +63,7 @@ public static class StatusBkuFlow
         DisetujuiTu => "Disetujui TU / Menunggu PA",
         DisetujuiPa => "Disetujui PA (Siap Bayar)",
         DisetujuiSudin => "Disetujui Sudin (Siap Bayar)",
-        LunasTransfer => "Lunas Transfer CMS Bank DKI",
+        LunasTransfer => "Lunas / Sudah Ditransfer",
         Ditolak => "Ditolak / Perlu Perbaikan",
         _ => "Tidak Diketahui"
     };
@@ -86,10 +76,28 @@ public static class StatusPajakFlow
     public const int LunasNtpn = 2;
 }
 
+public static class StatusDanaFlow
+{
+    public const int DraftPk = 0;
+    public const int DiajukanTu = 1;
+    public const int DisetujuiTu = 2;      // Menunggu PA
+    public const int DisetujuiPa = 3;      // Menunggu Dinas / Sudin
+    public const int CairDisetujui = 4;    // Disetujui Dinas / Sudin + Cair ke Rekening & Masuk BKU JO
+    public const int Ditolak = 9;
+}
+
 public static class JenisPembayaranBku
 {
     public const string Transfer = "TRANSFER";
+    public const string Luring = "LURING";
+    public const string DaringVa = "DARING_VA";
+    public const string VirtualAccount = "VA";
     public const string VaPln = "VA_PLN";
     public const string EOrder = "E_ORDER";
+    public const string Penerimaan = "PENERIMAAN";
+    public const string Pengeluaran = "PENGELUARAN";
     public const string NonTransfer = "NON_TRANSFER";
+
+    public static bool IsVirtualAccountMode(string? jenis) =>
+        jenis is VirtualAccount or DaringVa or VaPln or EOrder;
 }
