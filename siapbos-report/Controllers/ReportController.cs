@@ -18,17 +18,30 @@ public class ReportController : ControllerBase
     }
 
     [HttpGet("/pdf/form22")]
-    public async Task<IActionResult> Form22([FromQuery] int sekolahId, [FromQuery] int tahun = 2026, [FromQuery] string sumberDana = "BOS", [FromQuery] string? kodePeriode = null)
+    public async Task<IActionResult> Form22([FromQuery] int sekolahId, [FromQuery] int tahun = 2026, [FromQuery] string sumberDana = "BOS", [FromQuery] string? kodePeriode = null, [FromQuery] string? jenisPeriode = null)
     {
-        var bytes = await _pdf.GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, kodePeriode, bankOnly: false);
+        var bytes = await _pdf.GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, kodePeriode, bankOnly: false, jenisPeriode: jenisPeriode);
         return File(bytes, "application/pdf", $"Form22_BKU_{sumberDana}_{tahun}.pdf");
     }
 
     [HttpGet("/pdf/form23")]
-    public async Task<IActionResult> Form23([FromQuery] int sekolahId, [FromQuery] int tahun = 2026, [FromQuery] string sumberDana = "BOS", [FromQuery] string? kodePeriode = null)
+    public async Task<IActionResult> Form23([FromQuery] int sekolahId, [FromQuery] int tahun = 2026, [FromQuery] string sumberDana = "BOS", [FromQuery] string? kodePeriode = null, [FromQuery] string? jenisPeriode = null)
     {
-        var bytes = await _pdf.GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, kodePeriode, bankOnly: true);
+        var bytes = await _pdf.GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, kodePeriode, bankOnly: true, jenisPeriode: jenisPeriode);
         return File(bytes, "application/pdf", $"Form23_KasBank_{sumberDana}_{tahun}.pdf");
+    }
+
+    [HttpGet("/pdf/laporan")]
+    public async Task<IActionResult> UnifiedLaporan(
+        [FromQuery] int sekolahId,
+        [FromQuery] int tahun = 2026,
+        [FromQuery] string sumberDana = "BOS",
+        [FromQuery] string jenisLaporan = "form22",
+        [FromQuery] string? jenisPeriode = null,
+        [FromQuery] string? waktuPeriode = null)
+    {
+        var bytes = await _pdf.GenerateLaporanUnifiedAsync(sekolahId, tahun, sumberDana, jenisLaporan, jenisPeriode, waktuPeriode);
+        return File(bytes, "application/pdf", $"Laporan_{jenisLaporan}_{sumberDana}_{tahun}.pdf");
     }
 
     [HttpGet("/pdf/form25")]
@@ -74,9 +87,14 @@ public class ReportController : ControllerBase
     }
 
     [HttpGet("/pdf/mutasi")]
-    public async Task<IActionResult> Mutasi([FromQuery] int sekolahId, [FromQuery] string sumberDana = "BOS")
+    public async Task<IActionResult> Mutasi(
+        [FromQuery] int sekolahId,
+        [FromQuery] string sumberDana = "BOS",
+        [FromQuery] bool limit12 = false,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
-        var bytes = await _pdf.GenerateMutasiPdfAsync(sekolahId, sumberDana);
+        var bytes = await _pdf.GenerateMutasiPdfAsync(sekolahId, sumberDana, limit12, startDate, endDate);
         return File(bytes, "application/pdf", $"Mutasi_Rekening_{sumberDana}.pdf");
     }
 

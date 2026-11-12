@@ -2,6 +2,7 @@ namespace SiapBos.Shared.Constants;
 
 public static class SiapBosRoles
 {
+    public const string AdminTdi = "ADMIN-TDI";
     public const string AdminDinas = "ADMIN-DINAS";
     public const string Sudin = "SUDIN";
     public const string PaNegeri = "PA-NEGERI";
@@ -10,6 +11,7 @@ public static class SiapBosRoles
 
     public static readonly string[] AllRoles =
     [
+        AdminTdi,
         AdminDinas,
         Sudin,
         PaNegeri,
@@ -26,11 +28,32 @@ public static class SumberDanaTypes
 
 public static class KodeTrxBku
 {
-    public const string Dropping = "JO";
-    public const string BelanjaSpj = "JJ";
-    public const string JasaGiro = "JG";
-    public const string PendapatanLain = "LL";
-    public const string SetorSisa = "ST";
+    public const string Dropping = "JO";     // Pengisian Kas / Dropping Masuk (BOS/BOP)
+    public const string BelanjaSpj = "JJ";   // SPJ Pengajuan Belanja
+    public const string PajakPph21 = "P1";   // PPh Pasal 21
+    public const string PajakPph22 = "P2";   // PPh Pasal 22
+    public const string PajakPph23 = "P3";   // PPh Pasal 23 Jasa I
+    public const string PajakPph4  = "P4";   // PPh Pasal 4 Ayat 2
+    public const string PajakPpn   = "P5";   // PPN
+    public const string PajakPph26 = "P6";   // PPh Pasal 26
+    public const string PajakPph15 = "P7";   // PPh Pasal 15
+
+    public static bool IsPajak(string? kode) =>
+        !string.IsNullOrWhiteSpace(kode) &&
+        kode is PajakPph21 or PajakPph22 or PajakPph23 or PajakPph4 or PajakPpn or PajakPph26 or PajakPph15;
+
+    public static bool IsValid(string? kode) =>
+        kode is Dropping or BelanjaSpj || IsPajak(kode);
+}
+
+public static class StatusBatalTransferFlow
+{
+    public const int DraftPk = 0;
+    public const int DiajukanTu = 1;
+    public const int DisetujuiTuMenungguPa = 2;
+    public const int DisetujuiPaMenungguSudin = 3;
+    public const int DisetujuiSudinSelesai = 4;
+    public const int Ditolak = 9;
 }
 
 public static class StatusBkuFlow

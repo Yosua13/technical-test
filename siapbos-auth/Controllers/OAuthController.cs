@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using SiapBos.Shared.Constants;
 using SiapBos.Shared.Data;
 using SiapBos.Shared.DTOs;
 using SiapBos.Shared.Entities;
@@ -35,30 +36,6 @@ public class OAuthController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { captchaToken = token, captchaCode = code }));
     }
 
-    [HttpGet("/api/auth/demo-accounts")]
-    [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<object>>> GetDemoAccounts()
-    {
-        var users = await _db.AppUsers
-            .Include(u => u.Sekolah)
-            .Where(u => u.IsActive)
-            .OrderByDescending(u => u.Username == "ADMIN-TDI")
-            .ThenBy(u => u.Id)
-            .Select(u => new
-            {
-                u.Username,
-                u.NamaLengkap,
-                u.Nrk,
-                u.RoleCode,
-                u.Jabatan,
-                SekolahNama = u.Sekolah != null ? u.Sekolah.NamaSekolah : "Dinas / Suku Dinas Pendidikan",
-                DefaultPassword = u.Username == "ADMIN-TDI" ? "MonaS123!" : "password123"
-            })
-            .ToListAsync();
-
-        return Ok(ApiResponse<object>.Ok(users));
-    }
-
     [HttpPost("/oauth/token")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> Login([FromBody] LoginRequest req)
@@ -79,41 +56,27 @@ public class OAuthController : ControllerBase
         var user = await _db.AppUsers
             .Include(u => u.Sekolah)
             .FirstOrDefaultAsync(u =>
-                (u.Username.ToLower() == lowerId || u.Nrk.ToLower() == lowerId || u.Nip == identifier) && u.IsActive);
+                u.Username.ToLower() == lowerId || u.Nrk.ToLower() == lowerId || u.Nip == identifier);
 
-        var isPasswordValid = user != null && (
-            BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash) ||
-            (string.Equals(user.Username, "ADMIN-TDI", StringComparison.OrdinalIgnoreCase) &&
-             (req.Password == "MonaS123!" || req.Password == "password123"))
-        );
+        var isPasswordValid = user != null && BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash);
 
         if (user == null || !isPasswordValid)
         {
             return Unauthorized(ApiResponse<LoginResponse>.Fail("Username / NRK atau Password salah."));
         }
 
+        if (!user.IsActive)
+        {
+            return StatusCode(403, ApiResponse<LoginResponse>.Fail("Akun pengguna dalam status Nonaktif. Hubungi Administrator."));
+        }
+
+        if (user.IsLocked)
+        {
+            return StatusCode(403, ApiResponse<LoginResponse>.Fail("Akun pengguna sedang terkunci (Lock). Hubungi Administrator untuk Unlock."));
+        }
+
         var response = await BuildLoginResponseAsync(user, req.TahunAnggaran > 0 ? req.TahunAnggaran : 2025);
-        return Ok(ApiResponse<LoginResponse>.Ok(response, "Login SIAP BOS berhasil."));
-    }
-
-    [HttpPost("/api/auth/quick-switch")]
-    [Authorize]
-    public async Task<ActionResult<ApiResponse<LoginResponse>>> QuickSwitchRole([FromBody] QuickSwitchRoleRequest req)
-    {
-        var query = _db.AppUsers.Include(u => u.Sekolah).Where(u => u.RoleCode == req.RoleCode && u.IsActive);
-        if (req.SekolahId.HasValue)
-        {
-            query = query.Where(u => u.SekolahId == req.SekolahId.Value || u.SekolahId == null);
-        }
-
-        var user = await query.FirstOrDefaultAsync();
-        if (user == null)
-        {
-            return NotFound(ApiResponse<LoginResponse>.Fail($"Akun demo untuk role {req.RoleCode} tidak ditemukan."));
-        }
-
-        var response = await BuildLoginResponseAsync(user, req.TahunAnggaran > 0 ? req.TahunAnggaran : 2026);
-        return Ok(ApiResponse<LoginResponse>.Ok(response, $"Berhasil beralih ke role {user.RoleCode} ({user.NamaLengkap})."));
+        return Ok(ApiResponse<LoginResponse>.Ok(response, "Login SIAP BOSP & BOP berhasil."));
     }
 
     [HttpGet("/api/auth/me")]
@@ -122,9 +85,10 @@ public class OAuthController : ControllerBase
     {
         var username = User.FindFirst("username")?.Value;
         var user = await _db.AppUsers.Include(u => u.Sekolah).FirstOrDefaultAsync(u => u.Username == username);
-        if (user == null) return NotFound(ApiResponse<LoginResponse>.Fail("Pengguna tidak ditemukan."));
+        if (user == null || !user.IsActive || user.IsLocked)
+            return Unauthorized(ApiResponse<LoginResponse>.Fail("Sesi pengguna tidak valid atau akun terkunci."));
 
-        var response = await BuildLoginResponseAsync(user, tahunAnggaran);
+        var response = await BuildLoginResponseAsync(user, tahunAnggaran > 0 ? tahunAnggaran : 2025, recordTokenLog: false);
         return Ok(ApiResponse<LoginResponse>.Ok(response));
     }
 
@@ -263,14 +227,59 @@ public class OAuthController : ControllerBase
         }));
     }
 
-    private async Task<LoginResponse> BuildLoginResponseAsync(AppUser user, int tahunAnggaran)
+    private async Task<LoginResponse> BuildLoginResponseAsync(AppUser user, int tahunAnggaran, bool recordTokenLog = true)
     {
-        var role = await _db.AppRoles.FirstOrDefaultAsync(r => r.RoleCode == user.RoleCode);
-        var allModules = await _db.AppModules.Where(m => m.IsActive).OrderBy(m => m.SortOrder).ToListAsync();
-        var allMenus = await _db.AppMenus.Where(m => m.IsActive).OrderBy(m => m.SortOrder).ToListAsync();
+        var assignedRoles = await _db.AppUserOtoritas
+            .Include(uo => uo.Role)
+            .Where(uo => uo.UserId == user.Id && uo.Role != null && uo.Role.IsActive)
+            .Select(uo => uo.Role!)
+            .OrderBy(r => r.Id)
+            .ToListAsync();
 
-        var allowedModules = allModules
-            .Where(m => m.AllowedRolesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Contains(user.RoleCode))
+        if (assignedRoles.Count == 0 && !string.IsNullOrWhiteSpace(user.RoleCode))
+        {
+            var fallbackRole = await _db.AppRoles.FirstOrDefaultAsync(r => r.RoleCode == user.RoleCode && r.IsActive);
+            if (fallbackRole != null) assignedRoles.Add(fallbackRole);
+        }
+
+        var roleIds = assignedRoles.Select(r => r.Id).ToList();
+        var roleCodes = assignedRoles.Select(r => r.RoleCode).Distinct().ToList();
+        var primaryRole = assignedRoles.FirstOrDefault();
+        var primaryRoleCode = primaryRole?.RoleCode ?? user.RoleCode;
+
+        var allowedModuleIds = await _db.AppOtoritasAplikasis
+            .Where(oa => roleIds.Contains(oa.RoleId))
+            .Select(oa => oa.ModuleId)
+            .Distinct()
+            .ToListAsync();
+
+        var allowedMenuIds = await _db.AppOtoritasMenus
+            .Where(om => roleIds.Contains(om.RoleId))
+            .Select(om => om.MenuId)
+            .Distinct()
+            .ToListAsync();
+
+        var menuRolePairs = await _db.AppOtoritasMenus
+            .Include(om => om.Role)
+            .Where(om => om.Role != null && om.Role.IsActive)
+            .Select(om => new { om.MenuId, RoleCode = om.Role!.RoleCode })
+            .ToListAsync();
+
+        var menuRolesLookup = menuRolePairs
+            .GroupBy(x => x.MenuId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.RoleCode).Distinct().ToList());
+
+        var modules = await _db.AppModules
+            .Where(m => m.IsActive && allowedModuleIds.Contains(m.Id))
+            .OrderBy(m => m.SortOrder)
+            .ToListAsync();
+
+        var menus = await _db.AppMenus
+            .Where(mn => mn.IsActive && allowedMenuIds.Contains(mn.Id))
+            .OrderBy(mn => mn.SortOrder)
+            .ToListAsync();
+
+        var allowedModules = modules
             .Select(m => new AppModuleDto
             {
                 KodeAplikasi = m.KodeAplikasi,
@@ -278,44 +287,64 @@ public class OAuthController : ControllerBase
                 Link = m.Link,
                 Deskripsi = m.Deskripsi,
                 Icon = m.Icon,
-                Menu = allMenus
-                    .Where(mn => mn.KodeAplikasi == m.KodeAplikasi &&
-                                 mn.AllowedRolesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Contains(user.RoleCode))
+                Menu = menus
+                    .Where(mn => mn.KodeAplikasi == m.KodeAplikasi)
                     .Select(mn => new AppMenuDto
                     {
+                        Id = mn.Id,
                         Nama = mn.Nama,
                         Link = mn.Link,
                         Icon = mn.Icon,
-                        AllowedRoles = mn.AllowedRolesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+                        RequiresSekolah = mn.RequiresSekolah,
+                        AllowedRoles = menuRolesLookup.GetValueOrDefault(mn.Id, [])
                     }).ToList()
             })
+            .Where(m => m.Menu.Count > 0 || m.KodeAplikasi == "UM")
             .ToList();
 
-        var jwt = ServiceCollectionAuthExtensions.GenerateToken(user, tahunAnggaran, _config);
+        var requiresSchoolPicker = roleCodes.Any(rc =>
+            rc == SiapBosRoles.AdminTdi ||
+            rc == SiapBosRoles.AdminDinas ||
+            rc == SiapBosRoles.Sudin);
 
-        var tokenId = $"tok-{user.Username.ToLower()}-{Guid.NewGuid():N}"[..28];
-        var ipAddr = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-        _db.OAuthAccessTokens.Add(new OAuthAccessToken
+        var assignedSekolah = user.Sekolah;
+        if (!requiresSchoolPicker && assignedSekolah == null)
         {
-            TokenId = tokenId,
-            UserName = user.Username,
-            ClientId = "siapbos-webapp-prod",
-            RoleCode = user.RoleCode,
-            TahunAnggaran = tahunAnggaran,
-            IpAddress = ipAddr,
-            LoginAt = DateTime.UtcNow,
-            ExpiredAt = DateTime.UtcNow.AddHours(8)
-        });
-        _db.OAuthTokenHistories.Add(new OAuthTokenHistory
+            assignedSekolah = await _db.AppUserSekolahs
+                .Include(us => us.Sekolah)
+                .Where(us => us.UserId == user.Id && us.IsActive && us.Sekolah != null)
+                .Select(us => us.Sekolah)
+                .FirstOrDefaultAsync();
+        }
+
+        var jwt = ServiceCollectionAuthExtensions.GenerateToken(user, tahunAnggaran, _config, roleCodes);
+
+        if (recordTokenLog)
         {
-            AccessId = tokenId,
-            UserName = user.Username,
-            ClientId = "siapbos-webapp-prod",
-            IpAddress = ipAddr,
-            LoginAt = DateTime.UtcNow,
-            IsLogout = false
-        });
-        await _db.SaveChangesAsync();
+            var tokenId = $"tok-{user.Username.ToLower()}-{Guid.NewGuid():N}"[..28];
+            var ipAddr = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+            _db.OAuthAccessTokens.Add(new OAuthAccessToken
+            {
+                TokenId = tokenId,
+                UserName = user.Username,
+                ClientId = "siapbos-webapp-prod",
+                RoleCode = primaryRoleCode,
+                TahunAnggaran = tahunAnggaran,
+                IpAddress = ipAddr,
+                LoginAt = DateTime.UtcNow,
+                ExpiredAt = DateTime.UtcNow.AddHours(8)
+            });
+            _db.OAuthTokenHistories.Add(new OAuthTokenHistory
+            {
+                AccessId = tokenId,
+                UserName = user.Username,
+                ClientId = "siapbos-webapp-prod",
+                IpAddress = ipAddr,
+                LoginAt = DateTime.UtcNow,
+                IsLogout = false
+            });
+            await _db.SaveChangesAsync();
+        }
 
         return new LoginResponse
         {
@@ -330,31 +359,36 @@ public class OAuthController : ControllerBase
                 Nip = user.Nip,
                 Email = user.Email,
                 NoHp = user.NoHp,
-                RoleCode = user.RoleCode,
-                RoleName = role?.RoleName ?? user.RoleCode,
+                RoleCode = primaryRoleCode,
+                ShortCode = primaryRole?.ShortCode ?? primaryRoleCode,
+                RoleName = primaryRole?.RoleName ?? primaryRoleCode,
+                Roles = roleCodes,
+                RequiresSchoolPicker = requiresSchoolPicker,
                 Jabatan = user.Jabatan,
                 WilayahSudin = user.WilayahSudin,
-                SekolahId = user.SekolahId,
-                Sekolah = user.Sekolah == null ? null : new SekolahSummaryDto
+                SekolahId = assignedSekolah?.Id ?? user.SekolahId,
+                IsActive = user.IsActive,
+                IsLocked = user.IsLocked,
+                Sekolah = assignedSekolah == null ? null : new SekolahSummaryDto
                 {
-                    Id = user.Sekolah.Id,
-                    Npsn = user.Sekolah.Npsn,
-                    NamaSekolah = user.Sekolah.NamaSekolah,
-                    Jenjang = user.Sekolah.Jenjang,
-                    WilayahSudin = user.Sekolah.WilayahSudin,
-                    NamaSudin = user.Sekolah.NamaSudin,
-                    NoRekBos = user.Sekolah.NoRekBos,
-                    NamaRekBos = user.Sekolah.NamaRekBos,
-                    SaldoBos = user.Sekolah.SaldoBos,
-                    NoRekBop = user.Sekolah.NoRekBop,
-                    NamaRekBop = user.Sekolah.NamaRekBop,
-                    SaldoBop = user.Sekolah.SaldoBop,
-                    NpwpSekolah = user.Sekolah.NpwpSekolah,
-                    NamaKepalaSekolah = user.Sekolah.NamaKepalaSekolah,
-                    NrkKepalaSekolah = user.Sekolah.NrkKepalaSekolah,
-                    NamaBendahara = user.Sekolah.NamaBendahara,
-                    NrkBendahara = user.Sekolah.NrkBendahara,
-                    IsRekeningConfirmed = user.Sekolah.IsRekeningConfirmed
+                    Id = assignedSekolah.Id,
+                    Npsn = assignedSekolah.Npsn,
+                    NamaSekolah = assignedSekolah.NamaSekolah,
+                    Jenjang = assignedSekolah.Jenjang,
+                    WilayahSudin = assignedSekolah.WilayahSudin,
+                    NamaSudin = assignedSekolah.NamaSudin,
+                    NoRekBos = assignedSekolah.NoRekBos,
+                    NamaRekBos = assignedSekolah.NamaRekBos,
+                    SaldoBos = assignedSekolah.SaldoBos,
+                    NoRekBop = assignedSekolah.NoRekBop,
+                    NamaRekBop = assignedSekolah.NamaRekBop,
+                    SaldoBop = assignedSekolah.SaldoBop,
+                    NpwpSekolah = assignedSekolah.NpwpSekolah,
+                    NamaKepalaSekolah = assignedSekolah.NamaKepalaSekolah,
+                    NrkKepalaSekolah = assignedSekolah.NrkKepalaSekolah,
+                    NamaBendahara = assignedSekolah.NamaBendahara,
+                    NrkBendahara = assignedSekolah.NrkBendahara,
+                    IsRekeningConfirmed = assignedSekolah.IsRekeningConfirmed
                 }
             },
             ListAplikasi = allowedModules

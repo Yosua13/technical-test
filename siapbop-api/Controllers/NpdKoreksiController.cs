@@ -35,6 +35,9 @@ public class NpdKoreksiController : ControllerBase
     [HttpPost("/api-bop/npd")]
     public async Task<ActionResult<ApiResponse<NpdBop>>> CreateNpd([FromBody] CreateNpdRequest req)
     {
+        if (!User.IsInRole(SiapBosRoles.PkNegeri) && !User.IsInRole(SiapBosRoles.AdminTdi))
+            return StatusCode(403, ApiResponse<NpdBop>.Fail("Hanya Bendahara Sekolah (PK) yang berhak membuat draft NPD."));
+
         if (req.NilaiPengajuan <= 0)
             return BadRequest(ApiResponse<NpdBop>.Fail("Nilai pengajuan NPD harus lebih dari 0."));
 
@@ -59,6 +62,9 @@ public class NpdKoreksiController : ControllerBase
     [HttpPost("/api-bop/npd/{id:int}/ajukan")]
     public async Task<ActionResult<ApiResponse<NpdBop>>> AjukanNpd(int id)
     {
+        if (!User.IsInRole(SiapBosRoles.PkNegeri) && !User.IsInRole(SiapBosRoles.AdminTdi))
+            return StatusCode(403, ApiResponse<NpdBop>.Fail("Hanya Bendahara Sekolah (PK) yang berhak mengajukan NPD."));
+
         var npd = await _db.NpdBops.FindAsync(id);
         if (npd == null) return NotFound(ApiResponse<NpdBop>.Fail("NPD tidak ditemukan."));
         npd.StatusNpd = 1;
@@ -70,6 +76,9 @@ public class NpdKoreksiController : ControllerBase
     [HttpPost("/api-bop/npd/{id:int}/approve-pa")]
     public async Task<ActionResult<ApiResponse<NpdBop>>> ApproveNpdPa(int id, [FromBody] ApprovalActionRequest req)
     {
+        if (!User.IsInRole(SiapBosRoles.PaNegeri) && !User.IsInRole(SiapBosRoles.AdminTdi))
+            return StatusCode(403, ApiResponse<NpdBop>.Fail("Akses ditolak: Persetujuan NPD oleh Kepala Sekolah hanya untuk PA-NEGERI."));
+
         var npd = await _db.NpdBops.FindAsync(id);
         if (npd == null) return NotFound(ApiResponse<NpdBop>.Fail("NPD tidak ditemukan."));
         npd.StatusNpd = req.Disetujui ? 2 : 9;
@@ -81,6 +90,9 @@ public class NpdKoreksiController : ControllerBase
     [HttpPost("/api-bop/npd/{id:int}/approve-sudin")]
     public async Task<ActionResult<ApiResponse<object>>> ApproveNpdSudin(int id, [FromBody] ApprovalActionRequest req)
     {
+        if (!User.IsInRole(SiapBosRoles.Sudin) && !User.IsInRole(SiapBosRoles.AdminDinas) && !User.IsInRole(SiapBosRoles.AdminTdi))
+            return StatusCode(403, ApiResponse<object>.Fail("Akses ditolak: Persetujuan akhir NPD hanya untuk SUDIN / ADMIN-DINAS."));
+
         var npd = await _db.NpdBops.FindAsync(id);
         if (npd == null) return NotFound(ApiResponse<object>.Fail("NPD tidak ditemukan."));
 
@@ -103,89 +115,6 @@ public class NpdKoreksiController : ControllerBase
 
         return Ok(ApiResponse<object>.Ok(new { npd, sipkd = sipkdResult?.Data }, sipkdResult?.Message ?? "Disetujui Sudin & dikirim ke SIPKD."));
     }
-
-    [HttpGet("/api-bop/koreksi")]
-    public async Task<ActionResult<ApiResponse<List<BkuCorrection>>>> GetKoreksi([FromQuery] int sekolahId, [FromQuery] string sumberDana = "BOP")
-    {
-        var list = await _db.BkuCorrections
-            .Include(k => k.BkuTransaction)
-            .Where(k => k.SekolahId == sekolahId && k.SumberDana == sumberDana)
-            .OrderByDescending(k => k.Id)
-            .ToListAsync();
-        return Ok(ApiResponse<List<BkuCorrection>>.Ok(list));
-    }
-
-    [HttpPost("/api-bop/koreksi")]
-    public async Task<ActionResult<ApiResponse<BkuCorrection>>> CreateKoreksi([FromBody] CreateKoreksiRequest req)
-    {
-        var bku = await _db.BkuTransactions.Include(b => b.DetailItems).FirstOrDefaultAsync(b => b.Id == req.BkuTransactionId);
-        if (bku == null) return NotFound(ApiResponse<BkuCorrection>.Fail("Transaksi BKU tidak ditemukan."));
-
-        var koreksi = new BkuCorrection
-        {
-            BkuTransactionId = bku.Id,
-            SekolahId = bku.SekolahId,
-            SumberDana = bku.SumberDana,
-            JenisKoreksi = req.JenisKoreksi,
-            NilaiSebelum = bku.NilaiBrutoKeluar,
-            NilaiSesudah = req.NilaiSesudah ?? bku.NilaiBrutoKeluar,
-            KodeAkunSebelum = bku.DetailItems.FirstOrDefault()?.KodeAkun ?? "-",
-            KodeAkunSesudah = req.KodeAkunSesudah,
-            Alasan = req.Alasan,
-            StatusKoreksi = 1
-        };
-
-        _db.BkuCorrections.Add(koreksi);
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<BkuCorrection>.Ok(koreksi, "Usulan koreksi BKU berhasil diajukan ke Suku Dinas."));
-    }
-
-    [HttpPost("/api-bop/koreksi/{id:int}/approve-sudin")]
-    public async Task<ActionResult<ApiResponse<BkuCorrection>>> ApproveKoreksiSudin(int id, [FromBody] ApprovalActionRequest req)
-    {
-        var kor = await _db.BkuCorrections
-            .Include(k => k.BkuTransaction)
-            .ThenInclude(b => b!.DetailItems)
-            .FirstOrDefaultAsync(k => k.Id == id);
-        if (kor == null || kor.BkuTransaction == null)
-            return NotFound(ApiResponse<BkuCorrection>.Fail("Data koreksi tidak ditemukan."));
-
-        if (!req.Disetujui)
-        {
-            kor.StatusKoreksi = 9;
-            await _db.SaveChangesAsync();
-            return Ok(ApiResponse<BkuCorrection>.Ok(kor, "Usulan koreksi ditolak Sudin."));
-        }
-
-        var bku = kor.BkuTransaction;
-        if (kor.JenisKoreksi == "KODE_AKUN" && !string.IsNullOrWhiteSpace(kor.KodeAkunSesudah))
-        {
-            var firstItem = bku.DetailItems.FirstOrDefault();
-            if (firstItem != null)
-            {
-                firstItem.KodeAkun = kor.KodeAkunSesudah;
-            }
-        }
-        else if (kor.JenisKoreksi == "BATAL_TRANSFER")
-        {
-            var sekolah = await _db.Sekolahs.FindAsync(bku.SekolahId);
-            if (sekolah != null && bku.StatusBku == StatusBkuFlow.LunasTransfer)
-            {
-                if (bku.SumberDana == SumberDanaTypes.Bos) sekolah.SaldoBos += bku.NilaiNettoTransfer;
-                else sekolah.SaldoBop += bku.NilaiNettoTransfer;
-            }
-            bku.StatusBku = StatusBkuFlow.Draft;
-            bku.NoJurnalBank = null;
-            bku.StatusTransferBank = null;
-            bku.TokenOtpPa = null;
-            bku.CatatanVerifikasi = $"Batal Transfer SPJ disetujui Sudin: {kor.Alasan}";
-        }
-
-        kor.StatusKoreksi = 2;
-        kor.ApprovedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<BkuCorrection>.Ok(kor, "Koreksi BKU disetujui Sudin dan data BKU telah disesuaikan."));
-    }
 }
 
 public class CreateNpdRequest
@@ -195,13 +124,4 @@ public class CreateNpdRequest
     public string KodePeriode { get; set; } = "TW2";
     public string Uraian { get; set; } = string.Empty;
     public decimal NilaiPengajuan { get; set; }
-}
-
-public class CreateKoreksiRequest
-{
-    public int BkuTransactionId { get; set; }
-    public string JenisKoreksi { get; set; } = "KODE_AKUN"; // KODE_AKUN, BATAL_TRANSFER
-    public decimal? NilaiSesudah { get; set; }
-    public string? KodeAkunSesudah { get; set; }
-    public string Alasan { get; set; } = string.Empty;
 }

@@ -75,19 +75,20 @@ public class BosBopPdfGenerator
         });
     }
 
-    public async Task<byte[]> GenerateForm22Or23PdfAsync(int sekolahId, int tahun, string sumberDana, string? kodePeriode, bool bankOnly)
+    public async Task<byte[]> GenerateForm22Or23PdfAsync(int sekolahId, int tahun, string sumberDana, string? kodePeriode, bool bankOnly, string? jenisPeriode = null)
     {
         var sekolah = await _db.Sekolahs.FindAsync(sekolahId) ?? throw new KeyNotFoundException("Sekolah tidak ditemukan.");
-        var query = _db.BkuTransactions
-            .Where(b => b.SekolahId == sekolahId && b.TahunAnggaran == tahun && b.SumberDana == sumberDana && b.StatusBku != StatusBkuFlow.Ditolak);
+        var allItems = await _db.BkuTransactions
+            .Where(b => b.SekolahId == sekolahId && b.TahunAnggaran == tahun && b.SumberDana == sumberDana && b.StatusBku != StatusBkuFlow.Ditolak)
+            .OrderBy(b => b.TanggalTransaksi).ThenBy(b => b.Id)
+            .ToListAsync();
 
-        if (!string.IsNullOrWhiteSpace(kodePeriode))
-            query = query.Where(b => b.KodePeriode == kodePeriode);
+        var items = FilterByPeriode(allItems, jenisPeriode, kodePeriode);
 
         if (bankOnly)
-            query = query.Where(b => b.StatusBku == StatusBkuFlow.LunasTransfer || b.KodeTrx == KodeTrxBku.Dropping || b.KodeTrx == KodeTrxBku.JasaGiro);
+            items = items.Where(b => b.StatusBku == StatusBkuFlow.LunasTransfer || b.KodeTrx == KodeTrxBku.Dropping || KodeTrxBku.IsPajak(b.KodeTrx)).ToList();
 
-        var items = await query.OrderBy(b => b.TanggalTransaksi).ThenBy(b => b.Id).ToListAsync();
+        var periodeLabel = FormatPeriodeLabel(jenisPeriode, kodePeriode);
 
         var doc = Document.Create(container =>
         {
@@ -102,7 +103,7 @@ public class BosBopPdfGenerator
                     var title = bankOnly
                         ? $"FORMULIR 23 — BUKU PEMBANTU BANK ({sumberDana})"
                         : $"FORMULIR 22 — BUKU KAS UMUM SEKOLAH ({sumberDana})";
-                    ComposeKopAndSchool(col, title, "Laporan Resmi Penatausahaan Keuangan Satuan Pendidikan", sekolah, sumberDana, tahun, kodePeriode ?? "Semua Periode");
+                    ComposeKopAndSchool(col, title, "Laporan Resmi Penatausahaan Keuangan Satuan Pendidikan", sekolah, sumberDana, tahun, periodeLabel);
 
                     col.Item().Table(table =>
                     {
@@ -516,13 +517,23 @@ public class BosBopPdfGenerator
         return doc.GeneratePdf();
     }
 
-    public async Task<byte[]> GenerateMutasiPdfAsync(int sekolahId, string sumberDana)
+    public async Task<byte[]> GenerateMutasiPdfAsync(int sekolahId, string sumberDana, bool limit12 = false, DateTime? startDate = null, DateTime? endDate = null)
     {
         var sekolah = await _db.Sekolahs.FindAsync(sekolahId) ?? throw new KeyNotFoundException("Sekolah tidak ditemukan.");
-        var mutasi = await _db.BankMutations
-            .Where(m => m.SekolahId == sekolahId && m.SumberDana == sumberDana)
-            .OrderByDescending(m => m.TanggalTransaksi).ThenByDescending(m => m.Id)
-            .ToListAsync();
+        var query = _db.BankMutations
+            .Where(m => m.SekolahId == sekolahId && m.SumberDana == sumberDana);
+
+        if (startDate.HasValue)
+            query = query.Where(m => m.TanggalTransaksi >= DateTime.SpecifyKind(startDate.Value.Date, DateTimeKind.Utc));
+        if (endDate.HasValue)
+            query = query.Where(m => m.TanggalTransaksi <= DateTime.SpecifyKind(endDate.Value.Date.AddDays(1).AddSeconds(-1), DateTimeKind.Utc));
+
+        query = query.OrderByDescending(m => m.TanggalTransaksi).ThenByDescending(m => m.Id);
+        var mutasi = limit12 ? await query.Take(12).ToListAsync() : await query.ToListAsync();
+
+        var periodeText = limit12
+            ? "12 Transaksi Terakhir"
+            : (startDate.HasValue && endDate.HasValue ? $"{startDate:dd/MM/yyyy} s.d. {endDate:dd/MM/yyyy}" : "Semua Transaksi");
 
         var doc = Document.Create(container =>
         {
@@ -534,7 +545,7 @@ public class BosBopPdfGenerator
 
                 page.Content().Column(col =>
                 {
-                    ComposeKopAndSchool(col, $"CETAKAN MUTASI REKENING KORAN BANK DKI ({sumberDana})", "Rekening Koran Resmi CMS Bank DKI", sekolah, sumberDana, DateTime.Now.Year, "Semua Transaksi");
+                    ComposeKopAndSchool(col, $"CETAKAN MUTASI REKENING KORAN BANK DKI ({sumberDana})", "Rekening Koran Resmi CMS Bank DKI", sekolah, sumberDana, DateTime.Now.Year, periodeText);
 
                     col.Item().Table(table =>
                     {
@@ -577,5 +588,126 @@ public class BosBopPdfGenerator
         });
 
         return doc.GeneratePdf();
+    }
+
+    public async Task<byte[]> GenerateSptjPdfAsync(int sekolahId, int tahun, string sumberDana, string? jenisPeriode, string? waktuPeriode)
+    {
+        var sekolah = await _db.Sekolahs.FindAsync(sekolahId) ?? throw new KeyNotFoundException("Sekolah tidak ditemukan.");
+        var allBkus = await _db.BkuTransactions
+            .Where(b => b.SekolahId == sekolahId && b.TahunAnggaran == tahun && b.SumberDana == sumberDana && b.StatusBku != StatusBkuFlow.Ditolak)
+            .ToListAsync();
+        var filtered = FilterByPeriode(allBkus, jenisPeriode, waktuPeriode);
+        var totTerima = filtered.Where(b => b.KodeTrx == KodeTrxBku.Dropping).Sum(b => b.NilaiBrutoMasuk);
+        var totBelanja = filtered.Where(b => b.KodeTrx == KodeTrxBku.BelanjaSpj).Sum(b => b.NilaiBrutoKeluar);
+        var periodeLabel = FormatPeriodeLabel(jenisPeriode, waktuPeriode);
+
+        var doc = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(32);
+                page.DefaultTextStyle(x => x.FontSize(10f));
+
+                page.Content().Column(col =>
+                {
+                    ComposeKopAndSchool(col, $"SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK (SPTJ) — {sumberDana}", $"Periode {periodeLabel} Tahun Anggaran {tahun}", sekolah, sumberDana, tahun, periodeLabel);
+
+                    col.Item().PaddingTop(10).Text($"Yang bertanda tangan di bawah ini:").Bold();
+                    col.Item().PaddingLeft(12).PaddingTop(4).Column(c =>
+                    {
+                        c.Item().Text($"Nama     : {sekolah.NamaKepalaSekolah}");
+                        c.Item().Text($"NIP / NRK: {sekolah.NipKepalaSekolah} / {sekolah.NrkKepalaSekolah}");
+                        c.Item().Text($"Jabatan  : Kepala Satuan Pendidikan / Pengguna Anggaran {sekolah.NamaSekolah}");
+                    });
+
+                    col.Item().PaddingTop(12).Text($"Menyatakan dengan sesungguhnya bahwa kami bertanggung jawab penuh atas penggunaan dana {sumberDana} pada periode {periodeLabel} Tahun Anggaran {tahun} dengan rincian sebagai berikut:");
+
+                    col.Item().PaddingTop(10).Border(1).Padding(12).Column(b =>
+                    {
+                        b.Item().Text($"1. Total Penerimaan Dana (JO)          : {Rp(totTerima)}").Bold();
+                        b.Item().Text($"2. Total Realisasi Belanja SPJ (JJ)    : {Rp(totBelanja)}").Bold();
+                        b.Item().Text($"3. Sisa Dana Kas Sekolah Saat Ini      : {Rp(totTerima - totBelanja)}").Bold().FontColor(Colors.Orange.Darken3);
+                    });
+
+                    col.Item().PaddingTop(10).Text("Bukti-bukti pengeluaran anggaran yang sah dan lengkap disimpan sesuai ketentuan peraturan perundang-undangan yang berlaku untuk keperluan pemeriksaan aparat pengawasan fungsional.");
+                    ComposeSignatures(col, sekolah, DateTime.Now.ToString("dd MMMM yyyy", IdCulture));
+                });
+            });
+        });
+
+        return doc.GeneratePdf();
+    }
+
+    public Task<byte[]> GenerateLaporanUnifiedAsync(int sekolahId, int tahun, string sumberDana, string jenisLaporan, string? jenisPeriode, string? waktuPeriode) =>
+        jenisLaporan switch
+        {
+            "form22" => GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, waktuPeriode, bankOnly: false, jenisPeriode: jenisPeriode),
+            "form23" or "laporanMonitoringTransfer" => GenerateForm22Or23PdfAsync(sekolahId, tahun, sumberDana, waktuPeriode, bankOnly: true, jenisPeriode: jenisPeriode),
+            "25PPh21" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, "P1"),
+            "25PPh22" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, "P2"),
+            "25PPh23" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, "P3"),
+            "25PPh4" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, "P4"),
+            "25PPN" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, "P5"),
+            "pajakRekap" => GenerateForm25TaxPdfAsync(sekolahId, tahun, sumberDana, null),
+            "form19-k1k7" => GenerateKartuKendaliPdfAsync(sekolahId, tahun, sumberDana, formatK1K7: true),
+            "suratPernyataanTanggunggJawab" => GenerateSptjPdfAsync(sekolahId, tahun, sumberDana, jenisPeriode, waktuPeriode),
+            _ => GenerateKartuKendaliPdfAsync(sekolahId, tahun, sumberDana, formatK1K7: false)
+        };
+
+    private static List<BkuTransaction> FilterByPeriode(List<BkuTransaction> source, string? jenisPeriode, string? kodePeriode)
+    {
+        if (string.IsNullOrWhiteSpace(kodePeriode) || kodePeriode == "00")
+            return source;
+
+        var clean = kodePeriode.Trim();
+        var num = int.TryParse(clean.Replace("TW", "").Replace("CW", "").Replace("SM", "").Replace("BL", ""), out var parsed)
+            ? parsed
+            : 0;
+
+        if (string.Equals(jenisPeriode, "BL", StringComparison.OrdinalIgnoreCase) && num is >= 1 and <= 12)
+            return source.Where(b => b.Bulan == num || b.KodePeriode == clean).ToList();
+
+        if (string.Equals(jenisPeriode, "TW", StringComparison.OrdinalIgnoreCase) && num is >= 1 and <= 4)
+        {
+            var startM = (num - 1) * 3 + 1;
+            var endM = num * 3;
+            return source.Where(b =>
+                b.KodePeriode == clean ||
+                b.KodePeriode == $"0{num}" ||
+                b.KodePeriode == $"TW{num}" ||
+                (b.Bulan >= startM && b.Bulan <= endM)).ToList();
+        }
+
+        if (string.Equals(jenisPeriode, "CW", StringComparison.OrdinalIgnoreCase) && num is >= 1 and <= 3)
+        {
+            var startM = (num - 1) * 4 + 1;
+            var endM = num * 4;
+            return source.Where(b =>
+                b.KodePeriode == clean ||
+                b.KodePeriode == $"0{num}" ||
+                b.KodePeriode == $"CW{num}" ||
+                (b.Bulan >= startM && b.Bulan <= endM)).ToList();
+        }
+
+        if (string.Equals(jenisPeriode, "SM", StringComparison.OrdinalIgnoreCase) && num is >= 1 and <= 2)
+        {
+            var startM = (num - 1) * 6 + 1;
+            var endM = num * 6;
+            return source.Where(b =>
+                b.KodePeriode == clean ||
+                b.KodePeriode == $"0{num}" ||
+                b.KodePeriode == $"SM{num}" ||
+                (b.Bulan >= startM && b.Bulan <= endM)).ToList();
+        }
+
+        return source.Where(b => b.KodePeriode == clean || (num > 0 && b.KodePeriode == $"0{num}")).ToList();
+    }
+
+    private static string FormatPeriodeLabel(string? jenisPeriode, string? kodePeriode)
+    {
+        if (string.IsNullOrWhiteSpace(kodePeriode) || kodePeriode == "00")
+            return string.IsNullOrWhiteSpace(jenisPeriode) ? "Semua Periode" : $"{jenisPeriode} — Semua Periode";
+        return string.IsNullOrWhiteSpace(jenisPeriode) ? $"Periode {kodePeriode}" : $"{jenisPeriode} Ke-{kodePeriode}";
     }
 }

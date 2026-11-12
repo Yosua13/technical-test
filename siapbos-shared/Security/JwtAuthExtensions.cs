@@ -48,24 +48,38 @@ public static class ServiceCollectionAuthExtensions
         return services;
     }
 
-    public static string GenerateToken(AppUser user, int tahunAnggaran, IConfiguration configuration)
+    public static string GenerateToken(AppUser user, int tahunAnggaran, IConfiguration configuration, IEnumerable<string>? assignedRoles = null)
     {
         var issuer = configuration["Jwt:Issuer"] ?? JwtSettingsDefaults.Issuer;
         var audience = configuration["Jwt:Audience"] ?? JwtSettingsDefaults.Audience;
         var key = configuration["Jwt:Key"] ?? JwtSettingsDefaults.SecretKey;
 
+        var rolesList = (assignedRoles ?? [user.RoleCode])
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (rolesList.Count == 0 && !string.IsNullOrWhiteSpace(user.RoleCode))
+            rolesList.Add(user.RoleCode);
+
+        var primaryRole = rolesList.FirstOrDefault() ?? user.RoleCode;
+
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Username),
+            new("uid", user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.NamaLengkap),
-            new(ClaimTypes.Role, user.RoleCode),
             new("username", user.Username),
             new("nrk", user.Nrk),
-            new("roleCode", user.RoleCode),
+            new("roleCode", primaryRole),
             new("wilayahSudin", user.WilayahSudin),
             new("tahunAnggaran", tahunAnggaran.ToString())
         };
+
+        foreach (var roleCode in rolesList)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, roleCode));
+        }
 
         if (user.SekolahId.HasValue)
         {
@@ -84,5 +98,17 @@ public static class ServiceCollectionAuthExtensions
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public static int? GetUserId(this ClaimsPrincipal user)
+    {
+        var uidClaim = user.FindFirst("uid")?.Value;
+        if (int.TryParse(uidClaim, out var uid)) return uid;
+
+        foreach (var c in user.FindAll(ClaimTypes.NameIdentifier))
+        {
+            if (int.TryParse(c.Value, out var parsed)) return parsed;
+        }
+        return null;
     }
 }

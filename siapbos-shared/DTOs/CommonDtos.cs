@@ -23,13 +23,6 @@ public class LoginRequest
     public bool SkipCaptchaDemo { get; set; }
 }
 
-public class QuickSwitchRoleRequest
-{
-    public string RoleCode { get; set; } = string.Empty;
-    public int? SekolahId { get; set; }
-    public int TahunAnggaran { get; set; } = 2026;
-}
-
 public class LoginResponse
 {
     public string AccessToken { get; set; } = string.Empty;
@@ -50,10 +43,15 @@ public class UserProfileDto
     public string Email { get; set; } = string.Empty;
     public string NoHp { get; set; } = string.Empty;
     public string RoleCode { get; set; } = string.Empty;
+    public string ShortCode { get; set; } = string.Empty;
     public string RoleName { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = [];
+    public bool RequiresSchoolPicker { get; set; }
     public string Jabatan { get; set; } = string.Empty;
     public string WilayahSudin { get; set; } = string.Empty;
     public int? SekolahId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsLocked { get; set; }
     public SekolahSummaryDto? Sekolah { get; set; }
 }
 
@@ -91,9 +89,11 @@ public class AppModuleDto
 
 public class AppMenuDto
 {
+    public int Id { get; set; }
     public string Nama { get; set; } = string.Empty;
     public string Link { get; set; } = string.Empty;
     public string Icon { get; set; } = string.Empty;
+    public bool RequiresSekolah { get; set; }
     public List<string> AllowedRoles { get; set; } = [];
 }
 
@@ -121,10 +121,10 @@ public class CreateBkuRequest
     public string KodePeriode { get; set; } = "01";
     public DateTime TanggalTransaksi { get; set; } = DateTime.UtcNow;
     public string NomorBukti { get; set; } = string.Empty;
-    public string KodeTrx { get; set; } = "JJ"; // JJ, JG, LL
+    public string KodeTrx { get; set; } = "JJ"; // JO, JJ, P1..P7
     public string JenisPembayaran { get; set; } = "TRANSFER";
     public string Uraian { get; set; } = string.Empty;
-    public decimal? NominalNonSpj { get; set; } // Untuk JG / LL
+    public decimal? NominalNonSpj { get; set; } // Untuk JO / Pajak non-SPJ
     public string NamaRekanan { get; set; } = string.Empty;
     public string KodeBankRekanan { get; set; } = "111";
     public string NamaBankRekanan { get; set; } = "Bank DKI";
@@ -303,7 +303,26 @@ public class SetoranStsCreateRequest
     public int TahunAnggaran { get; set; } = 2026;
     public string SumberDana { get; set; } = "BOS";
     public string KodePeriode { get; set; } = "01";
-    public string JenisSetoran { get; set; } = "JASA_GIRO";
+    public string JenisSetoran { get; set; } = "SISA_BELANJA";
     public string Uraian { get; set; } = string.Empty;
     public decimal NilaiSetor { get; set; }
+}
+
+public class SaveBatalTransferRequest
+{
+    public int SekolahId { get; set; }
+    public int BkuTransactionId { get; set; }
+    public int TahunAnggaran { get; set; } = 2026;
+    public string SumberDana { get; set; } = "BOS";
+    public string JenisPeriode { get; set; } = "TW";
+    public string KodePeriode { get; set; } = "01";
+    public string NomorBeritaAcara { get; set; } = string.Empty;
+    public DateTime TanggalPembatalan { get; set; } = DateTime.UtcNow;
+    public string NrkPengkoreksi { get; set; } = string.Empty;
+    public string NamaPengkoreksi { get; set; } = string.Empty;
+    public string? FileBeritaAcaraName { get; set; }
+    public string? FileBeritaAcaraPath { get; set; }
+    public string UraianBeritaAcara { get; set; } = string.Empty;
+    public bool PajakTidakDikoreksi { get; set; } = true;
+    public bool SubmitToTu { get; set; } = false;
 }

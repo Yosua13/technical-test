@@ -117,7 +117,7 @@ public class SetoranSts
     public DateTime TanggalSts { get; set; }
 
     [Required, MaxLength(40)]
-    public string JenisSetoran { get; set; } = "JASA_GIRO"; // SISA_BELANJA, JASA_GIRO, PENDAPATAN_LAIN
+    public string JenisSetoran { get; set; } = "SISA_BELANJA"; // SISA_BELANJA, PENDAPATAN_LAIN
 
     [Required, MaxLength(300)]
     public string Uraian { get; set; } = string.Empty;
@@ -134,8 +134,8 @@ public class SetoranSts
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-[Table("trkoreksi_bku", Schema = "siap")]
-public class BkuCorrection
+[Table("trbatal_transfer_spj", Schema = "siap")]
+public class BatalTransferSpj
 {
     [Key]
     public int Id { get; set; }
@@ -144,35 +144,72 @@ public class BkuCorrection
     public BkuTransaction? BkuTransaction { get; set; }
 
     public int SekolahId { get; set; }
+    public Sekolah? Sekolah { get; set; }
+
+    public int TahunAnggaran { get; set; }
 
     [Required, MaxLength(10)]
-    public string SumberDana { get; set; } = "BOP";
+    public string SumberDana { get; set; } = "BOS"; // BOS atau BOP
 
-    [Required, MaxLength(30)]
-    public string JenisKoreksi { get; set; } = "KODE_AKUN"; // KODE_AKUN, NILAI_BELANJA, BATAL_TRANSFER
+    [Required, MaxLength(10)]
+    public string JenisPeriode { get; set; } = "TW"; // TW, SM, CW, BL
+
+    [Required, MaxLength(10)]
+    public string KodePeriode { get; set; } = "01";
+
+    [Required, MaxLength(80)]
+    public string NomorBeritaAcara { get; set; } = string.Empty;
+
+    public DateTime TanggalPembatalan { get; set; } = DateTime.UtcNow;
+
+    [Required, MaxLength(60)]
+    public string NomorBkuMohon { get; set; } = string.Empty;
 
     [Column(TypeName = "numeric(18,2)")]
-    public decimal NilaiSebelum { get; set; }
+    public decimal NilaiSpjBatal { get; set; }
 
-    [Column(TypeName = "numeric(18,2)")]
-    public decimal NilaiSesudah { get; set; }
+    [Required, MaxLength(40)]
+    public string NrkPengkoreksi { get; set; } = string.Empty;
 
-    [MaxLength(40)]
-    public string? KodeAkunSebelum { get; set; }
+    [Required, MaxLength(150)]
+    public string NamaPengkoreksi { get; set; } = string.Empty;
 
-    [MaxLength(40)]
-    public string? KodeAkunSesudah { get; set; }
+    [MaxLength(200)]
+    public string? FileBeritaAcaraName { get; set; }
 
-    [Required, MaxLength(350)]
-    public string Alasan { get; set; } = string.Empty;
+    [MaxLength(300)]
+    public string? FileBeritaAcaraPath { get; set; }
 
-    [MaxLength(250)]
-    public string? FileBeritaAcara { get; set; }
+    [Required, MaxLength(500)]
+    public string UraianBeritaAcara { get; set; } = string.Empty;
 
-    // 1: Diajukan ke Sudin, 2: Disetujui Sudin, 9: Ditolak
-    public int StatusKoreksi { get; set; } = 1;
+    public bool PajakTidakDikoreksi { get; set; } = true;
+
+    // 0: Draft PK, 1: Diajukan TU, 2: Disetujui TU (Menunggu PA), 3: Disetujui PA (Menunggu Sudin), 4: Disetujui Sudin (Selesai), 9: Ditolak
+    public int StatusBatal { get; set; } = 0;
+
+    [MaxLength(400)]
+    public string? CatatanVerifikasi { get; set; }
+
+    [MaxLength(80)]
+    public string? SubmittedByPk { get; set; }
+    public DateTime? SubmittedByPkAt { get; set; }
+
+    [MaxLength(80)]
+    public string? ApprovedByTu { get; set; }
+    public DateTime? ApprovedByTuAt { get; set; }
+
+    [MaxLength(80)]
+    public string? ApprovedByPa { get; set; }
+    public DateTime? ApprovedByPaAt { get; set; }
+
+    [MaxLength(80)]
+    public string? ApprovedBySudin { get; set; }
+    public DateTime? ApprovedBySudinAt { get; set; }
+
+    [MaxLength(80)]
+    public string CreatedBy { get; set; } = "system";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime? ApprovedAt { get; set; }
 }
 
 [Table("tiintegration_log", Schema = "siap")]

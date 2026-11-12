@@ -31,7 +31,7 @@ public class BkuTransaction
     public DateTime TanggalTransaksi { get; set; }
 
     [Required, MaxLength(10)]
-    public string KodeTrx { get; set; } = "JJ"; // JO, JJ, JG, LL, ST
+    public string KodeTrx { get; set; } = "JJ"; // JO, JJ, P1-P7
 
     [MaxLength(30)]
     public string JenisPembayaran { get; set; } = "TRANSFER"; // TRANSFER, VA_PLN, E_ORDER, NON_TRANSFER

@@ -131,6 +131,7 @@ public class AppUser
     public Sekolah? Sekolah { get; set; }
 
     public bool IsActive { get; set; } = true;
+    public bool IsLocked { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -143,6 +144,9 @@ public class AppRole
     [Required, MaxLength(40)]
     public string RoleCode { get; set; } = string.Empty;
 
+    [MaxLength(16)]
+    public string ShortCode { get; set; } = string.Empty; // ADM, PK, TU, PA, SDN, DNS
+
     [Required, MaxLength(100)]
     public string RoleName { get; set; } = string.Empty;
 
@@ -150,7 +154,98 @@ public class AppRole
     public string Deskripsi { get; set; } = string.Empty;
 
     [MaxLength(30)]
-    public string Level { get; set; } = "SEKOLAH"; // DINAS, SUDIN, SEKOLAH
+    public string Level { get; set; } = "SEKOLAH"; // TA, DINAS, SUDIN, SEKOLAH
+
+    public bool IsActive { get; set; } = true;
+}
+
+[Table("trsiappenggunaotoritas", Schema = "auth")]
+public class AppUserOtoritas
+{
+    [Key]
+    public int Id { get; set; }
+
+    public int UserId { get; set; }
+    public AppUser? User { get; set; }
+
+    public int RoleId { get; set; }
+    public AppRole? Role { get; set; }
+
+    [MaxLength(80)]
+    public string CreatedBy { get; set; } = "SYSTEM";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("trsiapotoritasaplikasi", Schema = "auth")]
+public class AppOtoritasAplikasi
+{
+    [Key]
+    public int Id { get; set; }
+
+    public int RoleId { get; set; }
+    public AppRole? Role { get; set; }
+
+    public int ModuleId { get; set; }
+    public AppModule? Module { get; set; }
+
+    [MaxLength(80)]
+    public string CreatedBy { get; set; } = "SYSTEM";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("trsiapotoritasmenu", Schema = "auth")]
+public class AppOtoritasMenu
+{
+    [Key]
+    public int Id { get; set; }
+
+    public int RoleId { get; set; }
+    public AppRole? Role { get; set; }
+
+    public int MenuId { get; set; }
+    public AppMenu? Menu { get; set; }
+
+    [MaxLength(80)]
+    public string CreatedBy { get; set; } = "SYSTEM";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("trsiappenggunasekolah", Schema = "auth")]
+public class AppUserSekolah
+{
+    [Key]
+    public int Id { get; set; }
+
+    public int UserId { get; set; }
+    public AppUser? User { get; set; }
+
+    public int SekolahId { get; set; }
+    public Sekolah? Sekolah { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    [MaxLength(80)]
+    public string CreatedBy { get; set; } = "SYSTEM";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("trsiappenggunawilayah", Schema = "auth")]
+public class AppUserWilayah
+{
+    [Key]
+    public int Id { get; set; }
+
+    public int UserId { get; set; }
+    public AppUser? User { get; set; }
+
+    [Required, MaxLength(20)]
+    public string KodeWilayah { get; set; } = "ALL"; // ALL, JP, JU, JB, JS, JT
+
+    [Required, MaxLength(120)]
+    public string NamaWilayah { get; set; } = "Semua Wilayah DKI Jakarta";
+
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 [Table("traplikasi", Schema = "siap")]
@@ -174,9 +269,6 @@ public class AppModule
     [MaxLength(60)]
     public string Icon { get; set; } = "bi-wallet2";
 
-    [MaxLength(250)]
-    public string AllowedRolesCsv { get; set; } = string.Empty;
-
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 }
@@ -199,9 +291,7 @@ public class AppMenu
     [MaxLength(60)]
     public string Icon { get; set; } = "bi-circle";
 
-    [MaxLength(250)]
-    public string AllowedRolesCsv { get; set; } = string.Empty;
-
+    public bool RequiresSekolah { get; set; } = false;
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 }

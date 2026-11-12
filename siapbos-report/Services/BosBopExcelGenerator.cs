@@ -83,7 +83,7 @@ public class BosBopExcelGenerator
         {
             var pagu = rkasList.Where(r => r.SekolahId == s.Id).Sum(r => r.TotalPagu);
             var bkus = bkuList.Where(b => b.SekolahId == s.Id).ToList();
-            var masuk = bkus.Where(b => b.KodeTrx is KodeTrxBku.Dropping or KodeTrxBku.JasaGiro).Sum(b => b.NilaiBrutoMasuk);
+            var masuk = bkus.Where(b => b.KodeTrx == KodeTrxBku.Dropping).Sum(b => b.NilaiBrutoMasuk);
             var keluar = bkus.Where(b => b.KodeTrx == KodeTrxBku.BelanjaSpj && b.StatusBku != StatusBkuFlow.Ditolak).Sum(b => b.NilaiBrutoKeluar);
             var kas = sumberDana == SumberDanaTypes.Bos ? s.SaldoBos : s.SaldoBop;
             var pct = pagu > 0 ? Math.Round(keluar / pagu * 100, 2) : 0m;

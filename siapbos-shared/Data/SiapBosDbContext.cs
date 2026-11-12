@@ -12,6 +12,11 @@ public class SiapBosDbContext : DbContext
     public DbSet<Sekolah> Sekolahs => Set<Sekolah>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<AppRole> AppRoles => Set<AppRole>();
+    public DbSet<AppUserOtoritas> AppUserOtoritas => Set<AppUserOtoritas>();
+    public DbSet<AppOtoritasAplikasi> AppOtoritasAplikasis => Set<AppOtoritasAplikasi>();
+    public DbSet<AppOtoritasMenu> AppOtoritasMenus => Set<AppOtoritasMenu>();
+    public DbSet<AppUserSekolah> AppUserSekolahs => Set<AppUserSekolah>();
+    public DbSet<AppUserWilayah> AppUserWilayahs => Set<AppUserWilayah>();
     public DbSet<AppModule> AppModules => Set<AppModule>();
     public DbSet<AppMenu> AppMenus => Set<AppMenu>();
     public DbSet<MasterPeriode> MasterPeriodes => Set<MasterPeriode>();
@@ -29,7 +34,7 @@ public class SiapBosDbContext : DbContext
     public DbSet<BankMutation> BankMutations => Set<BankMutation>();
     public DbSet<BapKasReport> BapKasReports => Set<BapKasReport>();
     public DbSet<SetoranSts> SetoranStses => Set<SetoranSts>();
-    public DbSet<BkuCorrection> BkuCorrections => Set<BkuCorrection>();
+    public DbSet<BatalTransferSpj> BatalTransferSpjs => Set<BatalTransferSpj>();
     public DbSet<IntegrationAuditLog> IntegrationAuditLogs => Set<IntegrationAuditLog>();
     public DbSet<HelpdeskTicket> HelpdeskTickets => Set<HelpdeskTicket>();
     public DbSet<OAuthAccessToken> OAuthAccessTokens => Set<OAuthAccessToken>();
@@ -57,6 +62,40 @@ public class SiapBosDbContext : DbContext
         modelBuilder.Entity<AppRole>(entity =>
         {
             entity.HasIndex(e => e.RoleCode).IsUnique();
+        });
+
+        modelBuilder.Entity<AppUserOtoritas>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.RoleId }).IsUnique();
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Role).WithMany().HasForeignKey(e => e.RoleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppOtoritasAplikasi>(entity =>
+        {
+            entity.HasIndex(e => new { e.RoleId, e.ModuleId }).IsUnique();
+            entity.HasOne(e => e.Role).WithMany().HasForeignKey(e => e.RoleId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Module).WithMany().HasForeignKey(e => e.ModuleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppOtoritasMenu>(entity =>
+        {
+            entity.HasIndex(e => new { e.RoleId, e.MenuId }).IsUnique();
+            entity.HasOne(e => e.Role).WithMany().HasForeignKey(e => e.RoleId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Menu).WithMany().HasForeignKey(e => e.MenuId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppUserSekolah>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.SekolahId }).IsUnique();
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Sekolah).WithMany().HasForeignKey(e => e.SekolahId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppUserWilayah>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.KodeWilayah }).IsUnique();
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AppModule>(entity =>
